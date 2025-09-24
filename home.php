@@ -293,9 +293,9 @@
                     <div class="card mb-4 progress-banner">
                         <a href="#" class="card-body justify-content-between d-flex flex-row align-items-center">
                             <div>
-                                <i class="iconsminds-box-close mr-2 text-white align-text-bottom d-inline-block"></i>
+                                <i class="iconsminds-financial mr-2 text-white align-text-bottom d-inline-block"></i>
                                 <div>
-                                    <p class="lead text-white"><?= $totM2Fmt ?> M<sup>2</sup> Totales</p>
+                                    <p class="lead text-white">25 Mensualidades restantes</p>
                                 </div>
                             </div>
                         </a>
