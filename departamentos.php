@@ -67,6 +67,52 @@
             $stDes->close();
         }
 
+        // Obtener departamentos únicos del desarrollo con superficie real y archivos
+        $departamentos = [];
+        if (!empty($idDesa)) {
+            $sqlDeptos = "SELECT DISTINCT 
+                            p.Dpto, p.IdCliente, p.Precio_Compraventa, p.m2inicial, p.m2actual,
+                            ud.M2Inicial as SuperficieReal, ud.File_Planos
+                         FROM tbr_pagos p
+                         LEFT JOIN tbr_usuario_desarrollos ud ON p.IdUsuario = ud.IdUsuario 
+                            AND p.IdDesarrollo = ud.IdDesarrollo 
+                            AND p.Dpto = ud.Dpto
+                         WHERE p.IdDesarrollo = ? AND p.IdUsuario = ?
+                         ORDER BY p.Dpto";
+            $stmtDeptos = $conexion->prepare($sqlDeptos);
+            $stmtDeptos->bind_param('ii', $idDesa, $idUsuario);
+            $stmtDeptos->execute();
+            $resDeptos = $stmtDeptos->get_result();
+            
+            while($depto = $resDeptos->fetch_assoc()) {
+                $departamentos[] = $depto;
+            }
+            $stmtDeptos->close();
+        }
+
+        // Construcción de rutas de archivos
+        $carpeta = '';
+        if (!empty($idDesa)) {
+            $qDes = "SELECT Nombre_Desarrollo, COALESCE(RutaImagenes,'') AS RutaImagenes
+                    FROM tbp_desarrollos WHERE IdDesarrollo = ?";
+            $stDes = $conexion->prepare($qDes);
+            $stDes->bind_param('i', $idDesa);
+            $stDes->execute();
+            $rDes = $stDes->get_result();
+            if ($d = $rDes->fetch_assoc()) {
+                $desarrollo = $d['Nombre_Desarrollo'];
+                $carpeta = carpetaDesarrollo($d['RutaImagenes'], $d['Nombre_Desarrollo']);
+            }
+            $stDes->close();
+        }
+
+        $dirMes = sprintf('COM%02d', $mesSeleccionado);
+        $appUrl = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/').'/';
+        $appRoot = rtrim(str_replace('\\','/', realpath(__DIR__)), '/');
+        $baseRel = 'desarrollos/'.$carpeta.'/'.$anoActual.'/'.$dirMes.'/';
+        $baseUrl = $appUrl.$baseRel;
+        $baseFs = $appRoot.'/'.$baseRel;
+
         // Carpeta de mes tipo COMxx
         $dirMes = sprintf('COM%02d', $mesSeleccionado);
 
@@ -96,6 +142,8 @@
 
     <link rel="stylesheet" href="font/iconsmind-s/css/iconsminds.css" />
     <link rel="stylesheet" href="font/simple-line-icons/css/simple-line-icons.css" />
+    <link rel="stylesheet" href="css/vendor/dataTables.bootstrap4.min.css" />
+    <link rel="stylesheet" href="css/vendor/datatables.responsive.bootstrap4.min.css" />
     <link rel="stylesheet" href="css/vendor/bootstrap.min.css" />
     <link rel="stylesheet" href="css/vendor/bootstrap.rtl.only.min.css" />
     <link rel="stylesheet" href="css/vendor/perfect-scrollbar.css" />
@@ -103,91 +151,23 @@
     <link rel="stylesheet" href="css/main.css" />
 
     <style>
-        /**====== Authentication css end ======**/
-        table {
-            border-collapse: collapse;
-            margin: 0;
-            margin-top: 2%;
-            padding: 0;
-            width: 100%;
-            table-layout: fixed;
-        }
-
-        table thead tr th{
-            background-color: #00365a;
-            color: #ffffff;
+        .nav-tabs .nav-link {
+            border: 1px solid transparent;
+            border-top-left-radius: 0.25rem;
+            border-top-right-radius: 0.25rem;
         }
         
-        table tr {
-            background-color: #ffffff;
-            border: 1px solid #00365a;
-            padding: .35em;
+        .nav-tabs .nav-link.active {
+            color: #495057;
+            background-color: #fff;
+            border-color: #dee2e6 #dee2e6 #fff;
         }
-
-        table th,
-        table td {
-            padding: .625em;
-            text-align: center;
-            border: 1px solid #00365a;
-        }
-
-        table td {
-            color: #00365a;
-            font-size: 13px;
-        }
-
-        table td a i {
-            color: #00365a;
-            font-size: 18px;
-        }
-
-        table td a i:hover {
-            color: #00365a;
-        }
-
-        table th h5 {
-            color: #ffffff;
-            font-weight: 300;
-            font-size: 15px;
-            text-transform: capitalize;
-            margin-bottom: 0;
-        }
-
-        table th {
-            letter-spacing: .1em;
-        }
-
-        @media screen and (max-width: 600px) {
-            table thead {
-                border: none;
-                clip: rect(0 0 0 0);
-                height: 1px;
-                margin: -1px;
-                overflow: hidden;
-                padding: 0;
-                position: absolute;
-                width: 1px;
-            }
-
-            table tr {
-                border-bottom: 1px solid #00365a;
-                display: block;
-                margin-bottom: .625em;
-            }
-
-            table td {
-                border-bottom: 1px solid #00365a;
-                display: block;
-                font-size: .8em;
-                text-align: right;
-            }
-
-            table td::before {
-                content: attr(data-label);
-                float: left;
-                font-weight: bold;
-                text-transform: uppercase;
-            }
+        
+        .tab-content {
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 0.25rem 0.25rem;
+            padding: 1rem;
         }
     </style>
 </head>
@@ -306,9 +286,9 @@
                         $mesAnterior = (int)date('n') - 1;
                         if ($mesAnterior === 0) { $mesAnterior = 12; }
 
-                        // CORREGIDO: Usar campos correctos de tbr_usuario_desarrollos
                         $sql = "SELECT DISTINCT DS.IdDesarrollo, DS.Nombre_Desarrollo
                                 FROM tbr_usuario_desarrollos UD
+                                INNER JOIN tbp_usuarios    US ON UD.IdUsuario    = US.IdUsuario
                                 INNER JOIN tbp_desarrollos DS ON UD.IdDesarrollo = DS.IdDesarrollo
                                 WHERE UD.IdUsuario = ? AND UD.Estatus = 1
                                 ORDER BY DS.Nombre_Desarrollo ASC";
@@ -359,187 +339,233 @@
                     <div class="separator mb-5"></div>
                 </div>
             </div>
+            
+            <?php if (!empty($departamentos)): ?>
+            <!-- PESTAÑAS DE DEPARTAMENTOS -->
+            <div class="row">
+                <div class="col-12">
+                    <ul class="nav nav-tabs" id="departamentoTabs" role="tablist">
+                        <?php foreach($departamentos as $index => $depto): ?>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link <?= $index === 0 ? 'active' : '' ?>" 
+                                id="depto<?= $depto['Dpto'] ?>-tab" 
+                                data-toggle="tab" 
+                                href="#depto<?= $depto['Dpto'] ?>" 
+                                role="tab" 
+                                aria-controls="depto<?= $depto['Dpto'] ?>" 
+                                aria-selected="<?= $index === 0 ? 'true' : 'false' ?>">
+                                    Departamento <?= $depto['Dpto'] ?>
+                                </a>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    
+                    <div class="tab-content" id="departamentoTabsContent">
+                        <?php foreach($departamentos as $index => $depto): 
+                            $numDepto = $depto['Dpto'];
+                            $idCliente = $depto['IdCliente'];
+                            $precioCompraventa = (float)$depto['Precio_Compraventa'];
+                            $m2inicial = (float)$depto['m2inicial'];
+                            $m2actual = (float)$depto['m2actual'];
+                            $superficieReal = (float)($depto['SuperficieReal'] ?? 128);
+                            
+                            // Archivos
+                            $fileComprobante = trim($depto['File_Comprobante'] ?? '');
+                            $filePlanos = trim($depto['File_Planos'] ?? '');
+                            
+                            // URLs de descarga
+                            $urlComprobante = $fileComprobante ? $baseUrl . rawurlencode($fileComprobante) : '';
+                            $urlPlanos = $filePlanos ? $baseUrl . rawurlencode($filePlanos) : '';
+                            
+                            // Usar fecha actual como placeholder (se puede mejorar con fecha real del archivo)
+                            $fechaFormateada = date('d/m/Y H:i');
+                            
+                            // Calcular datos para las fichas
+                            $superficie = $superficieReal;
+                            
+                            // Calcular pagos realizados y restantes
+                            $sqlPagos = "SELECT COUNT(*) as TotalPagos, SUM(CASE WHEN Estatus = 2 THEN Monto ELSE 0 END) as ImportePagado, SUM(CASE WHEN Estatus IN (0, 1) THEN Monto ELSE 0 END) as ImporteRestante, SUM(CASE WHEN Estatus IN (0, 1) THEN 1 ELSE 0 END) as MensualidadesRestantes
+                                        FROM tbr_pagos 
+                                        WHERE IdDesarrollo = ? AND IdUsuario = ? AND Dpto = ?";
+                            
+                            $stmtPagos = $conexion->prepare($sqlPagos);
+                            $stmtPagos->bind_param('iis', $idDesa, $idUsuario, $numDepto);
+                            $stmtPagos->execute();
+                            $resPagos = $stmtPagos->get_result();
+                            $dataPagos = $resPagos->fetch_assoc();
+                            $stmtPagos->close();
+                            
+                            $importePagado = (float)($dataPagos['ImportePagado'] ?? 0);
+                            $mensualidadesRestantes = (int)($dataPagos['MensualidadesRestantes'] ?? 0);
+                        ?>
+                        <div class="tab-pane fade <?= $index === 0 ? 'show active' : '' ?>" id="depto<?= $numDepto ?>" role="tabpanel" aria-labelledby="depto<?= $numDepto ?>-tab">                             
+                            <!-- FICHAS KPI DEL DEPARTAMENTO -->
+                            <div class="row mb-4">
+                                <div class="col-lg-3">
+                                    <div class="card mb-4 progress-banner">
+                                        <div class="card-body justify-content-between d-flex flex-row align-items-center">
+                                            <div>
+                                                <i class="iconsminds-hotel mr-2 text-white align-text-bottom d-inline-block"></i>
+                                                <div>
+                                                    <p class="lead text-white"><?= number_format($superficie, 2) ?> M² Superficie</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
 
-        <?php
-            // Solo continuar si tenemos los datos necesarios
-            if (empty($idDesa) || empty($idUsuario)) {
-                echo "<div class='alert alert-warning'>Error: Faltan parámetros necesarios (IdDesarrollo o IdUsuario)</div>";
-            } else {
-                
-                // ===== BLOQUE B: consulta de departamentos + pintado de tabla =====
-                // Normaliza mes/año actual y anterior
-                $anioSel = (int)date('Y');
-                $mesSel  = (int)$mesSeleccionado;
-                $mesPrev = $mesSel - 1; 
-                $anioPrev = $anioSel;
+                                <div class="col-lg-3">
+                                    <div class="card mb-4 progress-banner">
+                                        <div class="card-body justify-content-between d-flex flex-row align-items-center">
+                                            <div>
+                                                <i class="iconsminds-financial mr-2 text-white align-text-bottom d-inline-block"></i>
+                                                <div>
+                                                    <p class="lead text-white">$<?= number_format($importePagado, 2) ?> Importe Pagado</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
 
-                $dirMes  = sprintf('COM%02d', (int)$mesSeleccionado);                 // COM08
-                $carpeta = $carpeta ?? carpetaDesarrollo($rutaImagenes,'');           // carpeta real del desarrollo
-                $appUrl  = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/').'/';          // /Clientes_Archandel/
-                $appFs   = rtrim(str_replace('\\','/', realpath(__DIR__)), '/').'/';  // C:/xampp/htdocs/Clientes_Archandel/
+                                <div class="col-lg-3">
+                                    <div class="card mb-4 progress-banner">
+                                        <div class="card-body justify-content-between d-flex flex-row align-items-center">
+                                            <div>
+                                                <i class="iconsminds-blueprint mr-2 text-white align-text-bottom d-inline-block"></i>
+                                                <div>
+                                                    <small class="text-white-50">Actualizado: <?= $fechaFormateada ?></small>
+                                                    <p class="lead text-white">Planos</p>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <?php if ($filePlanos): ?>
+                                                    <a href="<?= $urlPlanos ?>" target="_blank" rel="noopener" download class="btn btn-light btn-sm">
+                                                        <i class="simple-icon-cloud-download"></i> Descargar
+                                                    </a>
+                                                <?php else: ?>
+                                                    <button class="btn btn-outline-light btn-sm" disabled>
+                                                        <i class="simple-icon-ban"></i> Sin archivo
+                                                    </button>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
 
-                $baseRel = 'desarrollos/'.$carpeta.'/'.$anioSel.'/'.$dirMes.'/';      // desarrollos/san_pedro_de_los_pinos/2025/COM08/
-                $baseUrl = $appUrl.$baseRel;                                          // URL para href
-                $baseFs  = $appFs.$baseRel;                                           // ruta física (opcional para validar existencia)
+                                <div class="col-lg-3">
+                                    <div class="card mb-4 progress-banner">
+                                        <div class="card-body justify-content-between d-flex flex-row align-items-center">
+                                            <div>
+                                                <i class="iconsminds-blueprint mr-2 text-white align-text-bottom d-inline-block"></i>
+                                                <div>
+                                                    <small class="text-white-50">Actualizado: <?= $fechaFormateada ?></small>
+                                                    <p class="lead text-white">Recibo De Pago</p>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <?php if ($fileRecibo): ?>
+                                                    <a href="<?= $urlPlanos ?>" target="_blank" rel="noopener" download class="btn btn-light btn-sm">
+                                                        <i class="simple-icon-cloud-download"></i> Descargar
+                                                    </a>
+                                                <?php else: ?>
+                                                    <button class="btn btn-outline-light btn-sm" disabled>
+                                                        <i class="simple-icon-ban"></i> Sin archivo
+                                                    </button>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-                if ($mesPrev === 0) { 
-                    $mesPrev = 12; 
-                    $anioPrev = $anioSel - 1; 
-                }
-
-                // CORREGIDO: Primera consulta con campos correctos de tbr_usuario_desarrollos
-                $consultaBase = "SELECT UD.Dpto, UD.M2Inicial, UD.File_Planos, UD.File_Comprobante, 
-                                        DCM_CUR.M2Mensual AS M2Cur, DCM_PREV.M2Mensual AS M2Prev, 
-                                        DCM_BASE.MinM2 AS M2Base
-                                FROM tbr_usuario_desarrollos UD
-                                JOIN tbp_desarrollos DS ON DS.IdDesarrollo = UD.IdDesarrollo
-                                
-                                LEFT JOIN tbr_desarrollos_costo_mensual DCM_CUR
-                                    ON DCM_CUR.IdDesarrollo = UD.IdDesarrollo
-                                    AND DCM_CUR.Mes = ? AND DCM_CUR.Anio = ?
-                                    
-                                LEFT JOIN tbr_desarrollos_costo_mensual DCM_PREV
-                                    ON DCM_PREV.IdDesarrollo = UD.IdDesarrollo
-                                    AND DCM_PREV.Mes = ? AND DCM_PREV.Anio = ?
-                                    
-                                LEFT JOIN (
-                                    SELECT IdDesarrollo, Anio, MIN(M2Mensual) AS MinM2
-                                    FROM tbr_desarrollos_costo_mensual
-                                    WHERE Anio = ?
-                                    GROUP BY IdDesarrollo, Anio
-                                ) DCM_BASE ON DCM_BASE.IdDesarrollo = UD.IdDesarrollo AND DCM_BASE.Anio = ?
-                                
-                                WHERE UD.IdUsuario = ? AND UD.IdDesarrollo = ? AND UD.Estatus = 1
-                                ORDER BY UD.Dpto";
-
-                $stmt = $conexion->prepare($consultaBase);
-                if (!$stmt) {
-                    die("Error en prepare: " . $conexion->error);
-                }
-
-                $stmt->bind_param('iiiiiiii', $mesSel, $anioSel, $mesPrev, $anioPrev, $anioSel, $anioSel, $idUsuario, $idDesa);
-                $stmt->execute();
-                $resultado = $stmt->get_result();
-
-                // CORREGIDO: Consulta de pagos usando campos correctos
-                $consultaPagos = "SELECT Dpto, 
-                                COUNT(*) AS PagosPendientes,
-                                SUM(Monto) AS ImportePendiente,
-                                MIN(CASE WHEN FechaPago >= CURDATE() THEN FechaPago END) AS ProximoPago
-                                FROM tbr_pagos
-                                WHERE IdUsuario = ? AND IdDesarrollo = ? AND Estatus = 1
-                                GROUP BY Dpto";
-
-                $stmtPagos = $conexion->prepare($consultaPagos);
-                if (!$stmtPagos) {
-                    die("Error en prepare pagos: " . $conexion->error);
-                }
-
-                $stmtPagos->bind_param('ii', $idUsuario, $idDesa);
-                $stmtPagos->execute();
-                $resultadoPagos = $stmtPagos->get_result();
-
-                // Crear array de pagos indexado por departamento
-                $pagosData = [];
-                while ($pago = $resultadoPagos->fetch_assoc()) {
-                    $pagosData[$pago['Dpto']] = $pago;
-                }
-                $stmtPagos->close();
-
-                if ($resultado->num_rows > 0) {
-                    echo "<div class='row mt-1'>";
-                        echo '<div class="col-lg-12 col-md-12">';
-                            echo '<div class="card">';
-                                echo '<div class="card-body">';
-                                    echo '<table>';
-                                        echo '<thead>';
-                                            echo '<tr class="text-center">';
-                                                echo '<th scope="col">Departamento</th>';
-                                                echo '<th scope="col">Superficie</th>';
-                                                echo '<th scope="col">Plusvalía (m/m)</th>';
-                                                echo '<th scope="col">Plusvalía Acumulada</th>';
-                                                echo '<th scope="col">Edo. de Cuenta</th>';
-                                                echo '<th scope="col">Planos</th>';
-                                                echo '<th scope="col">Pagos Pendientes</th>';
-                                                echo '<th scope="col">Importe Pendiente</th>';
-                                                echo '<th scope="col">Próximo Pago</th>';
-                                            echo '</tr>';
-                                        echo '</thead>';
-                                        echo '<tbody>';
-                                            while ($fila = $resultado->fetch_assoc()) {
-                                                // Datos básicos
-                                                $dpto = (string)($fila['Dpto'] ?? '');
-                                                $m2   = isset($fila['M2Inicial']) ? number_format((float)$fila['M2Inicial'], 2).' m²' : '—';
-
-                                                // Calcular plusvalía mes a mes y acumulada
-                                                $m2Cur = $fila['M2Cur'] ? (float)$fila['M2Cur'] : null;
-                                                $m2Prev = $fila['M2Prev'] ? (float)$fila['M2Prev'] : null;
-                                                $m2Base = $fila['M2Base'] ? (float)$fila['M2Base'] : null;
-
-                                                $plusvaliaMensual = '';
-                                                $plusvaliaAcumulada = '';
-
-                                                if ($m2Cur !== null && $m2Prev !== null && $m2Prev > 0) {
-                                                    $varMensual = (($m2Cur - $m2Prev) / $m2Prev) * 100;
-                                                    $plusvaliaMensual = number_format($varMensual, 2) . '%';
-                                                } else {
-                                                    $plusvaliaMensual = '—';
-                                                }
-
-                                                if ($m2Cur !== null && $m2Base !== null && $m2Base > 0) {
-                                                    $varAcumulada = (($m2Cur - $m2Base) / $m2Base) * 100;
-                                                    $plusvaliaAcumulada = number_format($varAcumulada, 2) . '%';
-                                                } else {
-                                                    $plusvaliaAcumulada = '—';
-                                                }
-
-                                                echo "<tr class='text-center'>";
-                                                    echo "<td data-label='Departamento'>" . htmlspecialchars($dpto) . "</td>";
-                                                    echo "<td data-label='Superficie'>" . htmlspecialchars($m2) . "</td>";
-                                                    echo "<td data-label='Plusvalía (m/m)'>" . $plusvaliaMensual . "</td>";
-                                                    echo "<td data-label='Plusvalía Acumulada'>" . $plusvaliaAcumulada . "</td>";
-                                                    
-                                                    $fnEdo = trim($fila['File_Comprobante'] ?? '');
-                                                    echo '<td data-label="Edo. de Cuenta">';
-                                                    if ($fnEdo) {
-                                                        $url = $baseUrl . rawurlencode($fnEdo);
-                                                        echo '<a class="btn btn-outline-primary btn-sm" href="'.$url.'" target="_blank" rel="noopener" download>Descargar</a>';
-                                                    } else {
-                                                        echo '<button class="btn btn-outline-secondary btn-sm" disabled>Sin archivo</button>';
-                                                    }
-                                                    echo '</td>';
-
-                                                    $fnPlano = trim($fila['File_Planos'] ?? '');
-                                                    echo '<td data-label="Planos">';
-                                                    if ($fnPlano) {
-                                                        $url = $baseUrl . rawurlencode($fnPlano);
-                                                        echo '<a class="btn btn-outline-primary btn-sm" href="'.$url.'" target="_blank" rel="noopener" download>Descargar</a>';
-                                                    } else {
-                                                        echo '<button class="btn btn-outline-secondary btn-sm" disabled>Sin archivo</button>';
-                                                    }
-                                                    echo '</td>';
-                                                    
-                                                    // Datos de pagos
-                                                    $pagoInfo = $pagosData[$dpto] ?? null;
-                                                    echo "<td data-label='Pagos Pendientes'>" . ($pagoInfo ? $pagoInfo['PagosPendientes'] : '0') . "</td>";
-                                                    echo "<td data-label='Importe Pendiente'>" . ($pagoInfo ? '$'.number_format($pagoInfo['ImportePendiente'], 2) : '$0.00') . "</td>";
-                                                    echo "<td data-label='Próximo Pago'>" . ($pagoInfo && $pagoInfo['ProximoPago'] ? date('d/m/Y', strtotime($pagoInfo['ProximoPago'])) : '—') . "</td>";
-                                                echo "</tr>";
-                                            }
-                                        echo '</tbody>';
-                                    echo '</table>';
-                                echo '</div>';
-                            echo '</div>';
-                        echo '</div>';
-                    echo '</div>';
-                } else {
-                    echo "<div class='alert alert-info'>No se encontraron departamentos para este desarrollo y usuario.</div>";
-                }
-                $stmt->close();
-
-            } // Cierre correcto del if principal
-            ?>
-        </div>            
+                            <!-- TABLA DE PAGOS -->
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5 class="card-title mb-4">Historial de Pagos - Departamento <?= $numDepto ?></h5>
+                                            <table class="data-table data-table-feature">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Fecha de Pago</th>
+                                                        <th>Estatus</th>
+                                                        <th>Concepto</th>
+                                                        <th>Monto</th>
+                                                        <th>Precio Compraventa</th>
+                                                        <th>Restante</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php
+                                                        // Obtener pagos específicos de este departamento
+                                                        $sqlDetallePagos = "SELECT FechaPago, Estatus, Concepto, Monto, Precio_Compraventa, Precio_Actual
+                                                                            FROM tbr_pagos 
+                                                                            WHERE IdDesarrollo = ? AND IdUsuario = ? AND Dpto = ?
+                                                                            ORDER BY FechaPago";
+                                                        
+                                                        $stmtDetalle = $conexion->prepare($sqlDetallePagos);
+                                                        $stmtDetalle->bind_param('iis', $idDesa, $idUsuario, $numDepto);
+                                                        $stmtDetalle->execute();
+                                                        $resDetalle = $stmtDetalle->get_result();
+                                                        
+                                                        $saldoRestante = $precioCompraventa;
+                                                        $hoy = date('Y-m-d');
+                                                        
+                                                        while($pago = $resDetalle->fetch_assoc()):
+                                                            $estatusNum = (int)$pago['Estatus'];
+                                                            $fechaPago = $pago['FechaPago'];
+                                                            $monto = (float)$pago['Monto'];
+                                                            $precioActual = (float)$pago['Precio_Actual'];
+                                                            
+                                                            // Determinar estatus y clase CSS
+                                                            $estatus = 'Pendiente';
+                                                            $estatusClass = 'badge-primary';
+                                                            
+                                                            if ($estatusNum === 2) {
+                                                                $estatus = 'Pagado';
+                                                                $estatusClass = 'badge-success';
+                                                                $saldoRestante -= $monto;
+                                                            } elseif ($estatusNum === 0) {
+                                                                $estatus = 'Cancelado';
+                                                                $estatusClass = 'badge-secondary';
+                                                            } elseif ($estatusNum === 1 && $fechaPago < $hoy) {
+                                                                $estatus = 'Vencido';
+                                                                $estatusClass = 'badge-danger';
+                                                            }
+                                                    ?>
+                                                        <tr>
+                                                            <td><?= date('d/m/Y', strtotime($pago['FechaPago'])) ?></td>
+                                                            <td><span class="badge <?= $estatusClass ?>"><?= $estatus ?></span></td>
+                                                            <td><?= htmlspecialchars($pago['Concepto']) ?></td>
+                                                            <td>$<?= number_format($monto, 2) ?></td>
+                                                            <td>$<?= number_format($precioCompraventa, 2) ?></td>
+                                                            <td>$<?= number_format($saldoRestante, 2) ?></td>
+                                                        </tr>
+                                                    <?php endwhile; 
+                                                        $stmtDetalle->close();
+                                                    ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+            <?php else: ?>
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <h4>No hay departamentos registrados</h4>
+                        <p>No se encontraron departamentos para este desarrollo y usuario.</p>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
     </main>
 
     <footer class="page-footer">
@@ -557,8 +583,22 @@
     <script src="js/vendor/jquery-3.3.1.min.js"></script>
     <script src="js/vendor/bootstrap.bundle.min.js"></script>
     <script src="js/vendor/perfect-scrollbar.min.js"></script>
+    <script src="js/vendor/datatables.min.js"></script>
     <script src="js/dore.script.js"></script>
     <script src="js/scripts.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            // Solo recalcular columnas cuando se cambie de pestaña
+            $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+                $.fn.dataTable.tables({visible: true, api: true}).columns.adjust();
+            });
+        });
+    </script>
+            
+</body>
+
+</html>
 </body>
 
 </html>
