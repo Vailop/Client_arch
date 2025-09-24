@@ -1,9 +1,7 @@
 <?php
     /**
      * eventos_pagos.php
-     * Feed de eventos para FullCalendar (v3).
-     * Lee pagos de tbr_pagos y (opcional) el nombre del desarrollo de tbp_desarrollos.
-     * Devuelve títulos cortos y detalles extra para mostrarlos al hacer click.
+     * Llena los pagos de tbr_pagos por usuario 
      */
 
     header('Content-Type: application/json; charset=utf-8');
