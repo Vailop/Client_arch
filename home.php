@@ -10,9 +10,15 @@
     }
     else
     {
-        $conexion = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
+        // --- CORRECCIÓN: Usar las constantes para la conexión ---
+        $conexion = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
+        if ($conexion->connect_error) {
+            die("Error de conexión a la base de datos: " . $conexion->connect_error);
+        }
         $idUsuario = $_SESSION["idusuario"];
-        $urlAvatar = $_SESSION["Avatar"];
+        // --- NOTA: En tu diagrama de DB no hay un campo 'Avatar' en la tabla 'usuarios'.
+        // Si tienes avatares, deberás adaptar esta línea.
+        $urlAvatar = isset($_SESSION["Avatar"]) ? $_SESSION["Avatar"] : 'img/default-avatar.png';
     }
 ?>
 
@@ -23,8 +29,10 @@
     <meta charset="UTF-8">
     <title>Archandel</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <meta name="keywords" content="Archandél, desarrollos, Desarrollos, departamentos, Departamentos, casas, Casas, renta, Renta, venta, Venta, residencias, Residencias, oficinas, Oficinas, proyectos inmobiliarios, lujo, CDMX, área metropolitana">
-    <meta name="description" content="Archandél Desarrollos Inmobiliarios en CDMX y área metropolitana. Creamos espacios de alto nivel que potencian la calidad de vida, combinando diseño, innovación y exclusividad.">
+    <meta name="keywords"
+        content="Archandél, desarrollos, Desarrollos, departamentos, Departamentos, casas, Casas, renta, Renta, venta, Venta, residencias, Residencias, oficinas, Oficinas, proyectos inmobiliarios, lujo, CDMX, área metropolitana">
+    <meta name="description"
+        content="Archandél Desarrollos Inmobiliarios en CDMX y área metropolitana. Creamos espacios de alto nivel que potencian la calidad de vida, combinando diseño, innovación y exclusividad.">
 
     <!-- Favicon icon -->
     <link rel="icon" href="/favicon.png" type="image/x-icon">
@@ -39,31 +47,31 @@
     <link rel="stylesheet" href="css/main.css" />
 
     <style>
-        /* Asegurar que las tarjetas de progreso muestren todo el contenido */
-        .card.dashboard-progress {
-            height: auto !important;
-            min-height: auto !important;
-        }
-        
-        .card.dashboard-progress .card-body {
-            height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
-        }
-        
-        /* Ajustar espaciado para que quepan las 8 barras */
-        .card.dashboard-progress .mb-4 {
-            margin-bottom: 1rem !important;
-        }
-        
-        .card.dashboard-progress .progress {
-            height: 6px;
-        }
-        
-        .card.dashboard-progress p {
-            margin-bottom: 0.5rem;
-            font-size: 13px;
-        }
+    /* Asegurar que las tarjetas de progreso muestren todo el contenido */
+    .card.dashboard-progress {
+        height: auto !important;
+        min-height: auto !important;
+    }
+
+    .card.dashboard-progress .card-body {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    /* Ajustar espaciado para que quepan las 8 barras */
+    .card.dashboard-progress .mb-4 {
+        margin-bottom: 1rem !important;
+    }
+
+    .card.dashboard-progress .progress {
+        height: 6px;
+    }
+
+    .card.dashboard-progress p {
+        margin-bottom: 0.5rem;
+        font-size: 13px;
+    }
     </style>
 </head>
 
@@ -101,7 +109,7 @@
             <!-- Dark Mode -->
             <div class="header-icons d-inline-block align-middle">
                 <div class="d-none d-md-inline-block align-text-bottom mr-3">
-                    <div class="custom-switch custom-switch-primary-inverse custom-switch-small pl-1" 
+                    <div class="custom-switch custom-switch-primary-inverse custom-switch-small pl-1"
                         data-toggle="tooltip" data-placement="left" title="Dark Mode">
                         <input class="custom-switch-input" id="switchDark" type="checkbox" checked>
                         <label class="custom-switch-btn" for="switchDark"></label>
@@ -119,7 +127,8 @@
                         <div class="scroll">
                             <div class="d-flex flex-row mb-3 pb-3 border-bottom">
                                 <a href="#">
-                                    <img src="img/profiles/l-2.jpg" alt="Notification Image" class="img-thumbnail list-thumbnail xsmall border-0 rounded-circle" />
+                                    <img src="img/profiles/l-2.jpg" alt="Notification Image"
+                                        class="img-thumbnail list-thumbnail xsmall border-0 rounded-circle" />
                                 </a>
                                 <div class="pl-3">
                                     <a href="#">
@@ -138,7 +147,7 @@
                     <i class="simple-icon-size-actual"></i>
                 </button>
             </div>
-            
+
             <!-- Usuario -->
             <div class="user d-inline-block">
                 <button class="btn btn-empty p-0" type="button" data-toggle="dropdown" aria-haspopup="true"
@@ -172,7 +181,7 @@
         <!-- SUB MENU -->
         <div class="sub-menu">
             <div class="scroll">
-                <ul class="list-unstyled" data-link="dashboard">                    
+                <ul class="list-unstyled" data-link="dashboard">
                     <?php
                         // --- Desarrollo dinámico (mismo <ul>, solo <li> nuevos) ---
                         if (session_status() === PHP_SESSION_NONE) { session_start(); }
@@ -197,20 +206,25 @@
                             while ($row = $res->fetch_assoc()) {
                                 $idDes  = (int)$row['IdDesarrollo'];
                                 $nombre = htmlspecialchars($row['Nombre_Desarrollo'], ENT_QUOTES, 'UTF-8');
-                    ?>                    
+                    ?>
                     <li>
-                        <a href="departamentos.php?IdUsuario=<?= $idUsuario; ?>&IdDesarrollo=<?= $idDes; ?>&mes=<?= $mesAnterior; ?>" data-idDesarrollo="<?= $idDes; ?>"><i class="iconsminds-folders"></i><span class="d-inline-block"><?= $nombre; ?></span></a></li>
-                        <?php
+                        <a href="departamentos.php?IdUsuario=<?= $idUsuario; ?>&IdDesarrollo=<?= $idDes; ?>&mes=<?= $mesAnterior; ?>"
+                            data-idDesarrollo="<?= $idDes; ?>"><i class="iconsminds-folders"></i><span
+                                class="d-inline-block"><?= $nombre; ?></span></a>
+                    </li>
+                    <?php
                             }
                             } else {
                         ?>
-                            <li><i class="iconsminds-folder-delete"></i><span class="d-inline-block">No hay desarrollos asignados</span></li>
-                            <?php
+                    <li><i class="iconsminds-folder-delete"></i><span class="d-inline-block">No hay desarrollos
+                            asignados</span></li>
+                    <?php
                             }
                             $stmt->close();
                             } else {
                         ?>
-                    <li><i class="iconsminds-folder-close"></i><span class="d-inline-block text-danger">Error al preparar la consulta</span></li>
+                    <li><i class="iconsminds-folder-close"></i><span class="d-inline-block text-danger">Error al
+                            preparar la consulta</span></li>
                     <?php
                         }
                     ?>
@@ -350,7 +364,7 @@
                         }
                         $stmtAvance->close();
                 ?>
-                
+
                 <!-- AVANCE DE OBRA -->
                 <div class="col-lg-6 mb-4">
                     <div class="card dashboard-progress">
@@ -361,9 +375,9 @@
                         </div>
                         <div class="card-body">
                             <h5 class="card-title">Avance De Obra <?= $nombreDes ?></h5>
-                            
+
                             <?php foreach ($categorias_orden as $categoria): ?>
-                                <?php
+                            <?php
                                     // Obtener valores o usar defaults
                                     if (isset($avances[$categoria])) {
                                         $valorActual = (float)$avances[$categoria]['ValorActual'];
@@ -377,18 +391,16 @@
                                     $valorActualFmt = rtrim(rtrim(number_format($valorActual, 2, '.', ''), '0'), '.');
                                     $valorObjetivoFmt = rtrim(rtrim(number_format($valorObjetivo, 2, '.', ''), '0'), '.');
                                 ?>
-                                <div class="mb-4">
-                                    <p class="mb-2"><?= htmlspecialchars($categoria) ?>
-                                        <span class="float-right text-muted"><?= $valorActualFmt ?>/<?= $valorObjetivoFmt ?></span>
-                                    </p>
-                                    <div class="progress">
-                                        <div class="progress-bar" role="progressbar" 
-                                            aria-valuenow="<?= $porcentaje ?>" 
-                                            aria-valuemin="0" 
-                                            aria-valuemax="100"
-                                            style="width: <?= $porcentaje ?>%;"></div>
-                                    </div>
+                            <div class="mb-4">
+                                <p class="mb-2"><?= htmlspecialchars($categoria) ?>
+                                    <span
+                                        class="float-right text-muted"><?= $valorActualFmt ?>/<?= $valorObjetivoFmt ?></span>
+                                </p>
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" aria-valuenow="<?= $porcentaje ?>"
+                                        aria-valuemin="0" aria-valuemax="100" style="width: <?= $porcentaje ?>%;"></div>
                                 </div>
+                            </div>
                             <?php endforeach; ?>
                         </div>
                     </div>
@@ -472,82 +484,104 @@
     <script src="js/scripts.js"></script>
 
     <script>
-        (async function () {
+    (async function() {
         const anio = new Date().getFullYear();
 
         // Selecciona todos los canvases que comienzan con "salesChart-<IdDesarrollo>"
         const canvases = document.querySelectorAll('canvas[id^="salesChart-"]');
 
         for (const cv of canvases) {
-            const parts = cv.id.split('-');           // ["salesChart", "123"]
+            const parts = cv.id.split('-'); // ["salesChart", "123"]
             const idDes = Number(parts[1]);
             if (!idDes) continue;
 
             try {
-            const res  = await fetch(`plusvalia_mes.php?IdDesarrollo=${idDes}&anio=${anio}`);
-            const json = await res.json();
+                const res = await fetch(`plusvalia_mes.php?IdDesarrollo=${idDes}&anio=${anio}`);
+                const json = await res.json();
 
-            // El título ya está establecido desde PHP, no necesitamos cambiarlo aquí
-            // Simplemente mantenemos la lógica del gráfico
+                // El título ya está establecido desde PHP, no necesitamos cambiarlo aquí
+                // Simplemente mantenemos la lógica del gráfico
 
-            // Calcula rango Y con los valores existentes
-            const vals = json.valorM2.filter(v => v != null);
-            const min  = vals.length ? Math.min(...vals) : 0;
-            const max  = vals.length ? Math.max(...vals) : 100;
-            const pad  = Math.max(10, (max - min) * 0.1);
+                // Calcula rango Y con los valores existentes
+                const vals = json.valorM2.filter(v => v != null);
+                const min = vals.length ? Math.min(...vals) : 0;
+                const max = vals.length ? Math.max(...vals) : 100;
+                const pad = Math.max(10, (max - min) * 0.1);
 
-            // Construye el gráfico
-            const ctx = cv.getContext('2d');
-            new Chart(ctx, {
-                type: "LineWithShadow", // si no ves nada, prueba "line"
-                data: {
-                labels: json.labels, // ['Ene', 'Feb', ...]
-                datasets: [{
-                    label: "Valor m²",
-                    data: json.valorM2, // [número o null]
-                    borderColor: window.themeColor1 || '#00365a',
-                    pointBackgroundColor: window.foregroundColor || '#00365a',
-                    pointBorderColor: window.themeColor1 || '#ffffff',
-                    pointHoverBackgroundColor: window.themeColor1 || '#ffffff',
-                    pointHoverBorderColor: window.foregroundColor || '#ffffff',
-                    pointRadius: 6,
-                    pointBorderWidth: 2,
-                    pointHoverRadius: 8,
-                    spanGaps: true, // no une puntos con null
-                    fill: false
-                }]
-                },
-                options: {
-                plugins: { datalabels: { display: false } },
-                responsive: true,
-                maintainAspectRatio: false,
-                legend: { display: false },
-                tooltips: {
-                    callbacks: {
-                    label: function (item) {
-                        var val = item.yLabel;
-                        var varPct = json.varPct[item.index];
-                        var line = ' $/m²: ' + Number(val).toLocaleString('es-MX', { maximumFractionDigits: 2 });
-                        if (varPct !== null && varPct !== undefined) line += ' (Δ ' + varPct + '%)';
-                        return line;
+                // Construye el gráfico
+                const ctx = cv.getContext('2d');
+                new Chart(ctx, {
+                    type: "LineWithShadow", // si no ves nada, prueba "line"
+                    data: {
+                        labels: json.labels, // ['Ene', 'Feb', ...]
+                        datasets: [{
+                            label: "Valor m²",
+                            data: json.valorM2, // [número o null]
+                            borderColor: window.themeColor1 || '#00365a',
+                            pointBackgroundColor: window.foregroundColor || '#00365a',
+                            pointBorderColor: window.themeColor1 || '#ffffff',
+                            pointHoverBackgroundColor: window.themeColor1 || '#ffffff',
+                            pointHoverBorderColor: window.foregroundColor || '#ffffff',
+                            pointRadius: 6,
+                            pointBorderWidth: 2,
+                            pointHoverRadius: 8,
+                            spanGaps: true, // no une puntos con null
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        plugins: {
+                            datalabels: {
+                                display: false
+                            }
+                        },
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        legend: {
+                            display: false
+                        },
+                        tooltips: {
+                            callbacks: {
+                                label: function(item) {
+                                    var val = item.yLabel;
+                                    var varPct = json.varPct[item.index];
+                                    var line = ' $/m²: ' + Number(val).toLocaleString('es-MX', {
+                                        maximumFractionDigits: 2
+                                    });
+                                    if (varPct !== null && varPct !== undefined) line += ' (Δ ' +
+                                        varPct + '%)';
+                                    return line;
+                                }
+                            }
+                        },
+                        scales: {
+                            yAxes: [{
+                                gridLines: {
+                                    display: true,
+                                    lineWidth: 1,
+                                    color: "rgba(0,0,0,0.1)",
+                                    drawBorder: false
+                                },
+                                ticks: {
+                                    beginAtZero: false,
+                                    min: Math.floor(min - pad),
+                                    max: Math.ceil(max + pad)
+                                }
+                            }],
+                            xAxes: [{
+                                gridLines: {
+                                    display: false
+                                }
+                            }]
+                        }
                     }
-                    }
-                },
-                scales: {
-                    yAxes: [{
-                    gridLines: { display: true, lineWidth: 1, color: "rgba(0,0,0,0.1)", drawBorder: false },
-                    ticks: { beginAtZero: false, min: Math.floor(min - pad), max: Math.ceil(max + pad) }
-                    }],
-                    xAxes: [{ gridLines: { display: false } }]
-                }
-                }
-            });
+                });
 
             } catch (e) {
-            console.error('Error cargando plusvalía para IdDesarrollo=' + idDes, e);
+                console.error('Error cargando plusvalía para IdDesarrollo=' + idDes, e);
             }
         }
-        })();
+    })();
     </script>
 </body>
 
