@@ -35,11 +35,14 @@
                                     class="text-white font-weight-bold">solicita tu regístro.</a>.</p>
                         </div>
                         <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                            <strong>Hash de prueba para 'alo123':</strong>
+                            <strong>Hash de prueba para 'LOVJ850730F96':</strong>
+                            <strong>Existen 2 usuarios de prueba SALK921224 su contraseña es alo123</strong>
+                            <strong>y LOVJ850730F96 la contraseña es la misma que rfc</strong>
+
                             <p style="word-wrap: break-word; font-family: monospace;">
                                 <?php
                                 // Contraseña de prueba.
-                                $password_prueba = 'alo123';
+                                $password_prueba = 'LOVJ850730F96';
 
                                 // Genera el hash de la contraseña de forma segura.
                                 // Utiliza password_hash() para una seguridad óptima.
