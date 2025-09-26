@@ -1,0 +1,32 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+<!--  
+    Prefiero comentar el codigo asi para que pueda ser clara la funcion 
+
+    Verifica si el módulo mod_rewrite de Apache está habilitado.
+      Esto asegura que las reglas solo se apliquen si el servidor puede procesarlas.
+<IfModule mod_rewrite.c>
+    Activa el motor de reescritura de URL.
+    Es el interruptor principal que habilita las reglas de abajo.
+    RewriteEngine On
+
+    Condición 1: Comprueba si la solicitud NO es un directorio existente.
+    El `!` al principio de la condición niega la comprobación.
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    Condición 2: Comprueba si la solicitud NO es un archivo existente.
+    Si las dos condiciones anteriores son verdaderas, se aplica la siguiente regla.
+    RewriteCond %{REQUEST_FILENAME} !-f
+
+    Regla de reescritura:
+    `^`: Coincide con el inicio de la cadena (el patrón es la URL completa).
+    `index.php`: Reescribe la URL para que siempre apunte a 'index.php'.
+    `[L]`: La bandera `L` (Last) indica que si esta regla se aplica,
+    no se deben procesar más reglas de reescritura.
+    RewriteRule ^ index.php [L]
+</IfModule> -->
