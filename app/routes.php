@@ -31,6 +31,10 @@ $routes = [
     // La ruta del calendario
     'GET /api/plusvalia' => 'PlusvaliaController@getPlusvaliaData',
     'GET /api/eventos_pagos' => 'ApiController@getEventosCalendario',
+
+    // --- Rutas para la gestión de pagos del cliente ---
+    'POST /pagos/subir' => 'PagosController@subirComprobante',
+    'GET /api/pagos_pendientes' => 'ApiController@getPagosPendientesForModal',
 ];
 
 // Función para obtener la ruta refactorizada para manejar métodos HTTP

@@ -1,100 +1,116 @@
 <?php
 
-// Incluye los archivos de los modelos necesarios para las operaciones de base de datos.
 require_once ROOT . "app/models/Desarrollo.php";
 require_once ROOT . "app/models/User.php";
+require_once ROOT . "app/models/Archivo.php";
+require_once ROOT . "app/models/Pago.php";
+require_once ROOT . "app/models/ProgramarPago.php";
 require_once ROOT . "app/core/Database.php";
 
-/**
- * Clase controladora para la página de departamentos.
- * Se encarga de gestionar la lógica de negocio y la preparación de la
- * vista que muestra los departamentos de un desarrollo específico para un usuario.
- */
 class DepartamentosController
 {
-    // Propiedad privada para almacenar la conexión a la base de datos.
-    private $conn;
+    private $conn; // Conexión a la base de datos
 
-    /**
-     * Constructor del controlador.
-     * Inicializa la conexión a la base de datos utilizando la clase Database.
-     */
     public function __construct()
     {
+        // Obtiene la instancia única de la base de datos (patrón Singleton)
         $database = Database::getInstance();
+        // Guarda la conexión activa en la propiedad $conn
         $this->conn = $database->getConnection();
     }
 
-    /**
-     * Método principal para la página de departamentos.
-     * Gestiona la sesión, valida los parámetros de la URL, consulta los datos
-     * de los modelos y pasa la información a la vista.
-     */
     public function index()
     {
-        // Inicia la sesión si aún no está activa.
+        // Inicia la sesión (para manejar datos del usuario logueado)
         session_start();
-        
-        // Si el usuario no ha iniciado sesión, lo redirige a la página de login.
+
+        // Verifica que el usuario esté logueado, si no → redirige al login
         if (!isset($_SESSION["idusuario"])) {
-            header("Location: /login");
-            exit(); // Detiene la ejecución del script.
+            header("Location: " . BASE_URL . "login");
+            exit();
         }
 
-        // Obtiene la información del usuario de la sesión.
+        // Se obtienen datos básicos del usuario desde la sesión
         $idUsuario = $_SESSION["idusuario"];
         $nombreUsuario = $_SESSION["nombre"];
+        // Si no tiene avatar cargado, se asigna uno por defecto
         $urlAvatar = isset($_SESSION["url_avatar"]) ? $_SESSION["url_avatar"] : '/img/default-avatar.png';
-        
-        // Calcula el mes anterior.
+
+        // Se calcula el número del mes anterior al actual
         $mesAnterior = (int)date('n') - 1;
+        // Si el mes anterior resulta ser 0 (enero → diciembre)
         if ($mesAnterior === 0) {
             $mesAnterior = 12;
         }
 
-        // Obtiene el ID del desarrollo de los parámetros de la URL.
+        // Obtiene el ID del desarrollo desde la URL (GET) o null si no viene
         $idDesa = isset($_GET['IdDesarrollo']) ? (int)$_GET['IdDesarrollo'] : null;
-
-        // --- CÓDIGO CORREGIDO ---
-        // Define la variable $mesSeleccionado ANTES de la validación del ID.
-        // Esto asegura que la variable siempre esté disponible, sin importar la ruta de ejecución.
+        // Obtiene el mes seleccionado desde la URL (GET), si no viene → mes actual
         $mesSeleccionado = isset($_GET['mes']) ? (int)$_GET['mes'] : (int)date("m");
-        // ------------------------
 
-        // Si el ID del desarrollo no es válido, redirige a la página de inicio.
+        // Si no hay desarrollo seleccionado → redirige al home
         if (empty($idDesa)) {
-            header("Location: /home");
+            header("Location: " . BASE_URL . "home");
             exit();
         }
 
-        // Obtiene la lista de todos los desarrollos asignados al usuario
-        // y el desarrollo específico por su ID, utilizando la clase Desarrollo.
+        // ----------------- CONSULTAS PRINCIPALES -----------------
+
+        // Lista de desarrollos a los que tiene acceso el usuario
         $desarrollos_list = Desarrollo::getByUserId($idUsuario);
+
+        // Datos del desarrollo actual
         $desarrolloObj = Desarrollo::getById($idDesa);
-        
-        // Obtiene el nombre del desarrollo o un mensaje por defecto si no se encuentra.
+        // Nombre del desarrollo (o mensaje si no existe)
         $desarrolloNombre = $desarrolloObj['nombre'] ?? "Desarrollo no encontrado";
         
-        // Obtiene la lista de departamentos para el usuario y desarrollo específicos.
+        // Lista de departamentos del usuario en ese desarrollo
+        // Ejemplo: [['departamento_no' => 'A-101'], ['departamento_no' => 'B-205']]
         $departamentos_list = Desarrollo::getDepartamentosByUserAndDesarrollo($idUsuario, $idDesa);
+
+        // Archivos generales del desarrollo (ejemplo: plano arquitectónico, manual de usuario)
+        $plano_url_general = Archivo::getUrlByTipoAndRegistro('plano_arquitectonico', $idDesa, 'desarrollos');
+        $manual_url_general = Archivo::getUrlByTipoAndRegistro('manual_usuario', $idDesa, 'desarrollos');
+
+        // ----------------- HISTORIAL DE PAGOS -----------------
+
+        // Obtiene el número de departamento (primer elemento de la lista de departamentos)
+        // Si la lista está vacía, se asigna un string vacío para evitar error
+        $deptoNoParaHistorial = $departamentos_list[0]['departamento_no'] ?? ''; 
         
-        // Almacena todas las variables en un solo array para pasarlas a la vista.
+        $historial_pagos = []; // Se inicializa vacío
+        if (!empty($deptoNoParaHistorial)) {
+            // Trae las cuotas programadas + comprobantes de pago asociados
+            $historial_pagos = ProgramarPago::getHistorialPagosDetallado(
+                $idUsuario, 
+                $idDesa, 
+                $deptoNoParaHistorial
+            );
+        }
+
+        // ----------------- PREPARAR DATOS PARA LA VISTA -----------------
+
+        // Se empaquetan todos los datos que se pasarán a la vista
         $data = [
             'idUsuario' => $idUsuario,
             'nombreUsuario' => $nombreUsuario,
             'urlAvatar' => $urlAvatar,
-            'idDesarrollo' => $idDesa,
+            'mesAnterior' => $mesAnterior,
             'mesSeleccionado' => $mesSeleccionado,
+            'idDesarrollo' => $idDesa,
             'desarrolloNombre' => $desarrolloNombre,
-            'departamentos_list' => $departamentos_list,
             'desarrollos_list' => $desarrollos_list,
-            'mesAnterior' => $mesAnterior
+            'plano_url_general' => $plano_url_general,
+            'manual_url_general' => $manual_url_general,
+            'historial_pagos' => $historial_pagos,
+            'departamentos_list' => $departamentos_list 
         ];
 
-        // Extrae las claves del array $data en variables locales para un acceso más fácil en la vista.
+        // Extrae cada clave de $data como variable individual
+        // (ej: $idUsuario, $nombreUsuario, $desarrolloNombre, etc.)
         extract($data);
-        
-        // Incluye la vista para renderizar el HTML.
+
+        // Carga la vista correspondiente, pasando los datos
         require_once ROOT . 'app/views/user/departamentos.php';
     }
 }

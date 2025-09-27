@@ -1,25 +1,27 @@
 <?php
-// app/controllers/ApiController.php
 
-// Incluye los modelos necesarios para obtener los datos de la base de datos.
 require_once ROOT . "app/models/Pago.php";
 require_once ROOT . "app/models/Desarrollo.php";
-require_once ROOT . "app/models/ProgramarPago.php"; 
+require_once ROOT . "app/models/ProgramarPago.php";
 require_once ROOT . "app/core/Database.php";
 
 /**
- * Clase controladora para gestionar peticiones de API.
- * Su propósito es responder a peticiones HTTP con datos en formato JSON,
- * sirviendo como un backend para la lógica del frontend.
+ * Controlador de API
+ * 
+ * Este controlador maneja las peticiones AJAX/HTTP desde el frontend
+ * y responde con datos en formato JSON. 
+ * Ideal para integrarse con librerías JS como FullCalendar.
  */
 class ApiController
 {
-    // Propiedad privada para la conexión a la base de datos.
+    // Propiedad privada que guarda la conexión a la base de datos
     private $conn;
 
     /**
-     * Constructor del controlador.
-     * Inicializa la conexión a la base de datos usando el patrón Singleton.
+     * Constructor
+     * 
+     * Establece la conexión a la base de datos usando el patrón Singleton
+     * para que toda la app comparta la misma conexión.
      */
     public function __construct()
     {
@@ -28,103 +30,130 @@ class ApiController
     }
 
     /**
-     * Método para obtener eventos de calendario.
-     * Combina los pagos realizados y los pagos programados para el usuario
-     * y los devuelve como un array de eventos en formato JSON.
+     * Obtiene los eventos del calendario (para FullCalendar).
+     * 
+     * - Junta pagos programados y pagos realizados.
+     * - Define colores y estatus según la situación de cada pago.
+     * - Devuelve un JSON con la lista de eventos.
      */
     public function getEventosCalendario()
     {
-        // Establece el encabezado para asegurar que la respuesta sea tratada como JSON.
         header('Content-Type: application/json; charset=utf-8');
 
-        // Inicia la sesión si no está activa.
+        // Verificar que la sesión esté iniciada
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
-        
-        // Verifica si el usuario ha iniciado sesión. Si no, devuelve un error de autenticación 401.
+
+        // Si el usuario no está logueado → error 401 (No autorizado)
         if (!isset($_SESSION['idusuario'])) {
             http_response_code(401);
             echo json_encode(['error' => 'Acceso no autorizado'], JSON_UNESCAPED_UNICODE);
-            exit;
+            return;
         }
 
-        // Obtiene el ID del usuario de la sesión.
         $idUsuario = (int) $_SESSION['idusuario'];
 
-        // Captura los parámetros de fecha 'start' y 'end' de la URL.
-        // Si no se proveen, usa un rango de fechas por defecto.
-        $start = $_GET['start'] ?? date('Y-m-01', strtotime('-1 month'));
-        $end = $_GET['end'] ?? date('Y-m-t', strtotime('+2 month'));
+        // Rango de fechas que pide FullCalendar (si no viene, se pone un rango por defecto)
+        $start = $_GET['start'] ?? date('Y-m-01', strtotime('-1 month')); // inicio → hace un mes
+        $end   = $_GET['end']   ?? date('Y-m-t', strtotime('+2 month')); // fin → 2 meses adelante
 
         try {
-            // Usa los modelos para obtener los datos. Esto mantiene el controlador limpio.
-            $pagosRealizados = Pago::getPagosByUserId($idUsuario, $start, $end);
+            // Consulta de pagos programados (incluye info si ya se pagó o no)
             $pagosProgramados = ProgramarPago::getPagosProgramadosByUserId($idUsuario, $start, $end);
 
-            $events = []; // Array para almacenar los eventos finales.
+            $events = [];
             $hoy = date('Y-m-d');
 
-            // --- Procesamiento de pagos realizados ---
-            foreach ($pagosRealizados as $pago) {
-                // Asigna colores basados en el estatus del pago.
-                $color = '#00365a'; // Color por defecto (p.ej., 'pendiente').
-                if ($pago['estatus_nombre'] === 'aprobado') {
-                    $color = '#28a745'; // Verde para 'aprobado'.
-                } elseif ($pago['estatus_nombre'] === 'rechazado') {
-                    $color = '#dc3545'; // Rojo para 'rechazado'.
-                }
-
-                // Crea el título del evento con el nombre del desarrollo y el monto.
-                $titulo = "Pago - {$pago['nombre_desarrollo']} ($: " . number_format($pago['monto'], 2, '.', ',') . ")";
-
-                // Agrega el evento al array.
-                $events[] = [
-                    'title'      => $titulo,
-                    'start'      => $pago['fecha_pago'],
-                    'color'      => $color,
-                    'allDay'     => true,
-                    'monto'      => number_format($pago['monto'], 2, '.', ','),
-                    'estatus'    => $pago['estatus_nombre'],
-                    'desarrollo' => $pago['nombre_desarrollo'],
-                    'tipo'       => 'realizado'
-                ];
-            }
-
-            // --- Procesamiento de pagos programados ---
+            // Recorremos todos los pagos programados
             foreach ($pagosProgramados as $pago) {
-                // Asigna colores y estatus para pagos programados.
-                $color = '#e27b00'; // Naranja para 'programado'.
+                $fecha_vencimiento = $pago['fecha_vencimiento'];
+                $estatus_real = $pago['estatus_real'] ?? ''; // Estado real del pago (aprobado, pendiente, rechazado)
+                $isSubmitted = !empty($pago['id_pago_realizado']); // Si tiene comprobante cargado
+                $monto = number_format($pago['monto_esperado'], 2, '.', ',');
+
+                // Estado por defecto: programado
+                $color = '#00365a'; 
                 $estatus = 'PROGRAMADO';
+                $titulo = "Vencimiento - {$pago['nombre_desarrollo']} ($: {$monto})";
 
-                // Si la fecha de vencimiento ya pasó, se considera 'vencido'.
-                if ($pago['fecha_vencimiento'] < $hoy) {
-                    $color = '#dc3545'; // Rojo para 'vencido'.
+                // ----- LÓGICA DE ESTADOS -----
+                if ($isSubmitted) {
+                    // Hay comprobante subido
+                    if ($estatus_real === 'aprobado') {
+                        $color = '#28a745'; // Verde
+                        $estatus = 'CUBIERTO';
+                        $titulo = "CUBIERTO - " . $pago['nombre_desarrollo'];
+                    } elseif ($estatus_real === 'pendiente') {
+                        $color = '#ffc107'; // Amarillo
+                        $estatus = 'SUBIDO (En Revisión)';
+                        $titulo = "EN REVISIÓN - " . $pago['nombre_desarrollo'];
+                    } elseif ($estatus_real === 'rechazado') {
+                        $color = '#dc3545'; // Rojo
+                        $estatus = 'RECHAZADO';
+                        $titulo = "RECHAZADO - " . $pago['nombre_desarrollo'];
+                    } else {
+                        // Si no tiene un estado definido, pero existe el pago
+                        $color = '#007bff'; // Azul claro
+                        $estatus = 'SUBIDO (Sin Estado)';
+                    }
+                } elseif ($fecha_vencimiento < $hoy) {
+                    // Si la fecha ya venció y no se subió nada
+                    $color = '#dc3545'; // Rojo
                     $estatus = 'VENCIDO';
+                    $titulo = "VENCIDO - " . $pago['nombre_desarrollo'];
                 }
-                
-                $titulo = "Vencimiento - {$pago['nombre_desarrollo']} ($: " . number_format($pago['monto_esperado'], 2, '.', ',') . ")";
 
-                // Agrega el evento al array.
+                // Construcción del evento para FullCalendar
                 $events[] = [
-                    'title'      => $titulo,
-                    'start'      => $pago['fecha_vencimiento'],
-                    'color'      => $color,
-                    'allDay'     => true,
-                    'monto'      => number_format($pago['monto_esperado'], 2, '.', ','),
-                    'estatus'    => $estatus,
-                    'desarrollo' => $pago['nombre_desarrollo'],
-                    'tipo'       => 'programado'
+                    'title'   => $titulo,
+                    'start'   => $fecha_vencimiento,
+                    'color'   => $color,
+                    'allDay'  => true, // Evento ocupa todo el día
+                    'monto'   => $monto,
+                    'estatus' => $estatus,
+                    'tipo'    => 'vencimiento' // Tipo de evento
                 ];
             }
 
-            // Devuelve la respuesta final en formato JSON.
+            // Se responde con los eventos en formato JSON
             echo json_encode($events, JSON_UNESCAPED_UNICODE);
 
         } catch (PDOException $e) {
-            // Maneja errores de la base de datos, devuelve un error 500.
+            // Error de base de datos → 500
             http_response_code(500);
-            echo json_encode(['error' => 'Error de la base de datos: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+            error_log("API Error (eventos_pagos): " . $e->getMessage());
+            echo json_encode(['error' => 'Error al procesar la consulta de eventos.'], JSON_UNESCAPED_UNICODE);
         }
+    }
+
+    /**
+     * Obtiene los pagos pendientes para mostrarlos en un modal (ventana emergente).
+     * 
+     * - Requiere idUsuario, idDesarrollo y numero de departamento.
+     * - Devuelve en JSON las cuotas aún no cubiertas.
+     */
+    public function getPagosPendientesForModal()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        session_start();
+
+        // Parámetros necesarios
+        $idUsuario = (int)($_SESSION['idusuario'] ?? 0);
+        $idDesarrollo = (int)($_GET['idDesarrollo'] ?? 0);
+        $departamentoNo = trim($_GET['departamentoNo'] ?? '');
+
+        // Validación de parámetros
+        if ($idUsuario === 0 || $idDesarrollo === 0 || empty($departamentoNo)) {
+            http_response_code(400); // Bad Request
+            echo json_encode(['error' => 'Faltan parámetros de usuario/desarrollo.'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        // Consulta al modelo para obtener pagos pendientes
+        $pagos = ProgramarPago::getPagosPendientesParaModal($idUsuario, $idDesarrollo, $departamentoNo);
+
+        // Respuesta en JSON
+        echo json_encode($pagos, JSON_UNESCAPED_UNICODE);
     }
 }
