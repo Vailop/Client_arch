@@ -1,0 +1,18 @@
+# .htaccess en /public/
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # No usar RewriteBase.
+
+    # 1. SI el archivo o directorio solicitado EXISTE, NO hagas nada [L]
+    # (Esto cubre archivos CSS, JS, e IMG, y la carpeta 'storage')
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+    
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # 2. PARA TODO LO DEMÁS (RUTAS VIRTUALES), redirige a index.php
+    # La parte ^(.*)$ captura la ruta virtual y la pasa como parámetro 'url'
+    RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
+</IfModule>
