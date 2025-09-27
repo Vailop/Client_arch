@@ -392,12 +392,12 @@
         const idCronogramaPago = button.getAttribute('data-cronograma-id');
         const montoEsperado = button.getAttribute('data-monto-esperado');
 
-        // 1. Inyectar IDs en campos ocultos (para el controlador)
+        // Inyectar IDs en campos ocultos (para el controlador)
         modal.querySelector('#modalIdDesarrollo').value = idDesarrollo;
         modal.querySelector('#modalDepartamentoNo').value = departamentoNo;
         modal.querySelector('#modalIdCronogramaPago').value = idCronogramaPago;
 
-        // 2. Inyectar información visible para el cliente
+        // Inyectar información visible para el cliente
         modal.querySelector('#modalDepartamentoTitulo').textContent = departamentoNo;
         modal.querySelector('#modalCuotaId').textContent = idCronogramaPago;
         modal.querySelector('#modalMontoRequerido').textContent = montoEsperado;
@@ -439,6 +439,23 @@
             select.innerHTML = '<option value="">Error de conexión / API</option>';
         }
     }
+
+    // Lógica para actualizar el nombre del archivo en el campo de Bootstrap
+    $(document).ready(function() {
+        // Escucha cuando el valor del input de archivo cambia
+        $('#comprobante').on('change', function() {
+            // Obtiene el nombre del archivo seleccionado
+            var fileName = $(this).val().split('\\').pop();
+
+            // Busca la etiqueta del campo de archivo y actualiza su texto
+            $(this).next('.custom-file-label').html(fileName);
+
+            // Si no se selecciona ningún archivo, vuelve a poner el texto por defecto.
+            if (fileName === '') {
+                $(this).next('.custom-file-label').html('Elige un archivo...');
+            }
+        });
+    });
     </script>
 </body>
 
