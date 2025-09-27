@@ -24,28 +24,25 @@ class DepartamentosController
         // Inicia la sesión (para manejar datos del usuario logueado)
         session_start();
 
-        // Verifica que el usuario esté logueado, si no → redirige al login
+        // ... (Verificación de sesión, obtención de $idUsuario, $nombreUsuario, $urlAvatar) ...
         if (!isset($_SESSION["idusuario"])) {
             header("Location: " . BASE_URL . "login");
             exit();
         }
 
-        // Se obtienen datos básicos del usuario desde la sesión
         $idUsuario = $_SESSION["idusuario"];
         $nombreUsuario = $_SESSION["nombre"];
-        // Si no tiene avatar cargado, se asigna uno por defecto
         $urlAvatar = isset($_SESSION["url_avatar"]) ? $_SESSION["url_avatar"] : '/img/default-avatar.png';
 
-        // Se calcula el número del mes anterior al actual
+        // Se calcula el número del mes anterior (se usa para el menú, se mantiene)
         $mesAnterior = (int)date('n') - 1;
-        // Si el mes anterior resulta ser 0 (enero → diciembre)
         if ($mesAnterior === 0) {
             $mesAnterior = 12;
         }
 
-        // Obtiene el ID del desarrollo desde la URL (GET) o null si no viene
+        // Obtiene el ID del desarrollo desde la URL (GET)
         $idDesa = isset($_GET['IdDesarrollo']) ? (int)$_GET['IdDesarrollo'] : null;
-        // Obtiene el mes seleccionado desde la URL (GET), si no viene → mes actual
+        // El mes seleccionado no se usa en el cuerpo, pero lo dejamos como dato de paso
         $mesSeleccionado = isset($_GET['mes']) ? (int)$_GET['mes'] : (int)date("m");
 
         // Si no hay desarrollo seleccionado → redirige al home
@@ -56,61 +53,74 @@ class DepartamentosController
 
         // ----------------- CONSULTAS PRINCIPALES -----------------
 
-        // Lista de desarrollos a los que tiene acceso el usuario
+        // 1. Lista de desarrollos para el menú lateral
         $desarrollos_list = Desarrollo::getByUserId($idUsuario);
 
-        // Datos del desarrollo actual
+        // 2. Datos del desarrollo actual
         $desarrolloObj = Desarrollo::getById($idDesa);
-        // Nombre del desarrollo (o mensaje si no existe)
         $desarrolloNombre = $desarrolloObj['nombre'] ?? "Desarrollo no encontrado";
         
-        // Lista de departamentos del usuario en ese desarrollo
-        // Ejemplo: [['departamento_no' => 'A-101'], ['departamento_no' => 'B-205']]
-        $departamentos_list = Desarrollo::getDepartamentosByUserAndDesarrollo($idUsuario, $idDesa);
-
-        // Archivos generales del desarrollo (ejemplo: plano arquitectónico, manual de usuario)
+        // 3. Archivos generales
         $plano_url_general = Archivo::getUrlByTipoAndRegistro('plano_arquitectonico', $idDesa, 'desarrollos');
         $manual_url_general = Archivo::getUrlByTipoAndRegistro('manual_usuario', $idDesa, 'desarrollos');
 
-        // ----------------- HISTORIAL DE PAGOS -----------------
+        // 4. LISTA DE DEPARTAMENTOS DETALLADOS (¡EL CAMBIO CLAVE!)
+        // Ahora cargaremos TODOS los datos necesarios para CADA departamento
 
-        // Obtiene el número de departamento (primer elemento de la lista de departamentos)
-        // Si la lista está vacía, se asigna un string vacío para evitar error
-        $deptoNoParaHistorial = $departamentos_list[0]['departamento_no'] ?? ''; 
+        $departamentos_con_datos = [];
+        $departamentos_base = Desarrollo::getDepartamentosByUserAndDesarrollo($idUsuario, $idDesa);
         
-        $historial_pagos = []; // Se inicializa vacío
-        if (!empty($deptoNoParaHistorial)) {
-            // Trae las cuotas programadas + comprobantes de pago asociados
+        foreach ($departamentos_base as $depto_base) {
+            $numDepto = $depto_base['departamento_no']; // Ejemplo: 'A-101'
+            $idDesarrollo = $idDesa;
+            $idUsuario = $idUsuario;
+
+            $detalles_depto_mock = [
+                'Dpto' => $numDepto,
+                'IdCliente' => $idUsuario, // Este campo parece innecesario, pero lo mantenemos
+                'Precio_Compraventa' => 2500000.00, // Debes obtenerlo de tu tabla de departamentos
+                'm2inicial' => 100.00,
+                'm2actual' => 105.00,
+                'SuperficieReal' => 102.50, // Superficie en m²
+                'File_Comprobante' => 'path/comprobante_' . $numDepto . '.pdf', // Último comprobante general si lo hay
+                'File_Planos' => 'path/planos_' . $numDepto . '.pdf', // Planos del departamento
+            ];
+            // --- FIN SIMULACIÓN ---
+
+            $depto_completo = array_merge($depto_base, $detalles_depto_mock);
+
+            // 5. Historial de pagos (esto debe ser por departamento)
             $historial_pagos = ProgramarPago::getHistorialPagosDetallado(
                 $idUsuario, 
-                $idDesa, 
-                $deptoNoParaHistorial
+                $idDesarrollo, 
+                $numDepto
             );
+            
+            $depto_completo['historial_pagos'] = $historial_pagos;
+
+            $departamentos_con_datos[] = $depto_completo;
         }
 
         // ----------------- PREPARAR DATOS PARA LA VISTA -----------------
-
-        // Se empaquetan todos los datos que se pasarán a la vista
         $data = [
             'idUsuario' => $idUsuario,
             'nombreUsuario' => $nombreUsuario,
             'urlAvatar' => $urlAvatar,
             'mesAnterior' => $mesAnterior,
-            'mesSeleccionado' => $mesSeleccionado,
             'idDesarrollo' => $idDesa,
             'desarrolloNombre' => $desarrolloNombre,
-            'desarrollos_list' => $desarrollos_list,
+            'desarrollos_list' => $desarrollos_list, // Para el menú lateral
             'plano_url_general' => $plano_url_general,
             'manual_url_general' => $manual_url_general,
-            'historial_pagos' => $historial_pagos,
-            'departamentos_list' => $departamentos_list 
+            // ¡ESTO ES LO NUEVO Y ES CLAVE!
+            'departamentos' => $departamentos_con_datos, 
+            'baseUrl' => BASE_URL . 'archivos/departamentos/', // Base URL para archivos específicos de depto
         ];
 
-        // Extrae cada clave de $data como variable individual
-        // (ej: $idUsuario, $nombreUsuario, $desarrolloNombre, etc.)
         extract($data);
 
         // Carga la vista correspondiente, pasando los datos
         require_once ROOT . 'app/views/user/departamentos.php';
     }
+   
 }

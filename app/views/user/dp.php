@@ -238,10 +238,10 @@
                                         <?php endif; ?>
                                     </td>
                                     <td data-label="Acción de Pago">
-                                        <?php 
-        // Lógica para que el botón solo aparezca si no está aprobado
-        $puede_pagar = ($pago['estatus_real'] !== 'aprobado' && $pago['estatus_real'] !== 'pendiente'); 
-    ?>
+                                        <?php
+                                                // Lógica para que el botón solo aparezca si no está aprobado
+                                                $puede_pagar = ($pago['estatus_real'] !== 'aprobado' && $pago['estatus_real'] !== 'pendiente');
+                                                ?>
 
                                         <?php if ($puede_pagar): ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary" data-toggle="modal"
@@ -256,7 +256,8 @@
                                         </button>
                                         <?php else: ?>
                                         <span class="text-muted small">
-                                            <?php if($pago['estatus_real'] === 'pendiente') echo 'En revisión'; else echo 'Pago Cubierto'; ?>
+                                            <?php if ($pago['estatus_real'] === 'pendiente') echo 'En revisión';
+                                                        else echo 'Pago Cubierto'; ?>
                                         </span>
                                         <?php endif; ?>
                                     </td>
@@ -298,47 +299,76 @@
                     <div class="modal-body">
                         <input type="hidden" name="id_desarrollo" id="modalIdDesarrollo">
                         <input type="hidden" name="departamento_no" id="modalDepartamentoNo">
+                        <input type="hidden" name="id_pago_programado" id="modalIdCronogramaPago">
 
-                        <p>Subir comprobante para el departamento:
-                            <strong id="modalDepartamentoTitulo">N/A</strong>
-                        </p>
+                        <div class="card bg-dark text-white border-0 shadow-sm mb-3">
+                            <div class="card-body p-3">
+                                <h6 class="text-uppercase text-white-50 mb-2">Resumen del Pago</h6>
+                                <p class="mb-1">
+                                    <i class="iconsminds-building mr-1 text-primary"></i>
+                                    Dpto.: <strong id="modalDepartamentoTitulo">N/A</strong>
+                                </p>
+                                <!-- <p class="mb-1">
+                                    <i class="iconsminds-tag mr-1 text-info"></i>
+                                    Cuota ID: <strong id="modalCuotaId">N/A</strong>
+                                </p> -->
+                                <p class="mb-0">
+                                    <i class="iconsminds-financial mr-1 text-success"></i>
+                                    Monto requerido: <strong id="modalMontoRequerido">N/A</strong>
+                                </p>
+                            </div>
+                        </div>
+
 
                         <div class="form-group">
-                            <label for="pago_pendiente">Seleccionar Pago Pendiente:</label>
-                            <select class="form-control" id="pago_pendiente" name="id_pago_programado">
-                                <option value="">Cargando pagos...</option>
-                            </select>
+                            <label for="monto_real" class="font-weight-bold">Monto Pagado:</label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text text-success"><i class="iconsminds-dollar"></i></span>
+                                </div>
+                                <input type="number" step="0.01" class="form-control" id="monto_real" name="monto_real"
+                                    placeholder="0.00" required>
+                            </div>
                         </div>
 
                         <div class="form-group">
-                            <label for="monto_real">Monto Pagado:</label>
-                            <input type="number" step="0.01" class="form-control" id="monto_real" name="monto_real"
-                                placeholder="0.00" required>
+                            <label for="fecha_real" class="font-weight-bold">Fecha de Pago:</label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text text-info"><i
+                                            class="iconsminds-calendar-4"></i></span>
+                                </div>
+                                <input type="date" class="form-control" id="fecha_real" name="fecha_real" required>
+                            </div>
                         </div>
 
                         <div class="form-group">
-                            <label for="fecha_real">Fecha de Pago (Realizada):</label>
-                            <input type="date" class="form-control" id="fecha_real" name="fecha_real" required>
+                            <label for="comprobante" class="font-weight-bold">Comprobante:</label>
+                            <div class="custom-file">
+                                <input type="file" class="custom-file-input" id="comprobante" name="comprobante"
+                                    accept=".pdf,.jpg,.jpeg,.png" required>
+                                <label class="custom-file-label" for="comprobante">Elige un archivo...</label>
+                            </div>
+                            <small class="form-text text-muted">Formatos permitidos: PDF, JPG, PNG</small>
                         </div>
 
                         <div class="form-group">
-                            <label for="comprobante">Comprobante (PDF, JPG, PNG):</label>
-                            <input type="file" class="form-control-file" id="comprobante" name="comprobante"
-                                accept=".pdf,.jpg,.jpeg,.png" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="comentarios">Comentarios (Opcional):</label>
-                            <textarea class="form-control" id="comentarios" name="comentarios"></textarea>
+                            <label for="comentarios" class="font-weight-bold">Comentarios (Opcional):</label>
+                            <textarea class="form-control" id="comentarios" name="comentarios" rows="3"
+                                placeholder="Escribe aquí alguna nota..."></textarea>
                         </div>
                     </div>
+
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">
+                            <i class="iconsminds-close"></i> Cancelar
+                        </button>
                         <button type="submit" class="btn btn-primary">
                             <i class="iconsminds-upload-to-cloud"></i> Subir Pago
                         </button>
                     </div>
                 </form>
+
             </div>
         </div>
     </div>
@@ -354,17 +384,25 @@
     // Función para pasar datos del botón al modal y cargar los pagos pendientes
     function abrirModalPago(button) {
         const modal = document.getElementById('subirPagoModal');
+
+        // Capturamos todos los datos del botón
         const idDesarrollo = button.getAttribute('data-desarrollo-id');
         const departamentoNo = button.getAttribute('data-departamento-no');
-        const idUsuario = <?= json_encode($idUsuario); ?>; // Obtenido del PHP
+        // CLAVE: Capturamos el ID de la cuota programada (que viene del bucle de la tabla)
+        const idCronogramaPago = button.getAttribute('data-cronograma-id');
+        const montoEsperado = button.getAttribute('data-monto-esperado');
 
-        // Inyectar IDs en campos ocultos del formulario
+        // Inyectar IDs en campos ocultos (para el controlador)
         modal.querySelector('#modalIdDesarrollo').value = idDesarrollo;
         modal.querySelector('#modalDepartamentoNo').value = departamentoNo;
-        modal.querySelector('#modalDepartamentoTitulo').textContent = departamentoNo;
+        modal.querySelector('#modalIdCronogramaPago').value = idCronogramaPago;
 
-        // Cargar pagos pendientes vía AJAX
-        cargarPagosPendientes(idUsuario, idDesarrollo, departamentoNo);
+        // Inyectar información visible para el cliente
+        modal.querySelector('#modalDepartamentoTitulo').textContent = departamentoNo;
+        modal.querySelector('#modalCuotaId').textContent = idCronogramaPago;
+        modal.querySelector('#modalMontoRequerido').textContent = montoEsperado;
+
+        // YA NO SE NECESITA AJAX NI LA FUNCIÓN cargarPagosPendientes
     }
 
     async function cargarPagosPendientes(idUsuario, idDesarrollo, departamentoNo) {
@@ -401,6 +439,23 @@
             select.innerHTML = '<option value="">Error de conexión / API</option>';
         }
     }
+
+    // Lógica para actualizar el nombre del archivo en el campo de Bootstrap
+    $(document).ready(function() {
+        // Escucha cuando el valor del input de archivo cambia
+        $('#comprobante').on('change', function() {
+            // Obtiene el nombre del archivo seleccionado
+            var fileName = $(this).val().split('\\').pop();
+
+            // Busca la etiqueta del campo de archivo y actualiza su texto
+            $(this).next('.custom-file-label').html(fileName);
+
+            // Si no se selecciona ningún archivo, vuelve a poner el texto por defecto.
+            if (fileName === '') {
+                $(this).next('.custom-file-label').html('Elige un archivo...');
+            }
+        });
+    });
     </script>
 </body>
 
