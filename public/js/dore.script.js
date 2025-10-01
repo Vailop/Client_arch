@@ -2828,41 +2828,40 @@ $.dore = function (element, options) {
       }
     }
 
-    /* 03.10. Calendar */
-    if ($().fullCalendar) {
-      var testEvent = new Date(new Date().setHours(new Date().getHours()));
-      var day = testEvent.getDate();
-      var month = testEvent.getMonth() + 1;
-      $(".calendar").fullCalendar({
-        themeSystem: "bootstrap4",
-        height: "auto",
-        isRTL: isRtl,
-        locale: "es",
-        buttonText: {
-          today: "Hoy",
-          month: "Mes",
-          week: "Semana",
-          day: "Día",
-          list: "Lista"
-        },
-        bootstrapFontAwesome: {
-          prev: " simple-icon-arrow-left",
-          next: " simple-icon-arrow-right",
-          prevYear: " simple-icon-control-start",
-          nextYear: " simple-icon-control-end"
-        },
-        events: { url: 'eventos_pagos.php', type: 'GET' },
-
-        eventClick: function (ev, js) {
-          if (js) js.preventDefault();
-          if (window.notificarPago) {
-            window.notificarPago(ev, 'top', 'center');
-          } else {
-            console.warn('notificarPago no está disponible');
-          }
-        }
-      });
+/* 03.10. Calendar */
+if ($().fullCalendar) {
+  var testEvent = new Date(new Date().setHours(new Date().getHours()));
+  var day = testEvent.getDate();
+  var month = testEvent.getMonth() + 1;
+  $(".calendar").fullCalendar({
+    themeSystem: "bootstrap4",
+    height: "auto",
+    isRTL: isRtl,
+    locale: "es",
+    buttonText: {
+      today: "Hoy",
+      month: "Mes",
+      week: "Semana",
+      day: "Día",
+      list: "Lista"
+    },
+    bootstrapFontAwesome: {
+      prev: " simple-icon-arrow-left",
+      next: " simple-icon-arrow-right",
+      prevYear: " simple-icon-control-start",
+      nextYear: " simple-icon-control-end"
+    },
+    events: { url: '/api/eventos_pagos', type: 'GET' },
+    eventClick: function (ev, js) {
+      if (js) js.preventDefault();
+      if (window.notificarPago) {
+        window.notificarPago(ev, 'top', 'center');
+      } else {
+        console.warn('notificarPago no está disponible');
+      }
     }
+  });
+}
 
     /* 03.11. Datatable */
     if ($().DataTable) {
