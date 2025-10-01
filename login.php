@@ -1,103 +1,85 @@
 <?php
-    require 'config.php';
-    // Iniciar la sesión
-    session_start();
+require 'config.php';
+session_start();
 
-    // Verificar si se envió el formulario
-    if ($_SERVER["REQUEST_METHOD"] == "POST") {
-        // Obtener los datos del formulario
-        $RFCUser = $_POST["username"];
-        $contrasena = $_POST["password"];
+// Variables para mensajes
+$error = '';
 
-        // Conectar a la base de datos (Asegúrate de actualizar la información de conexión)
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $rfcUser = trim($_POST["username"]);
+    $password = trim($_POST["password"]);
+    
+    // Validaciones básicas
+    if (empty($rfcUser) || empty($password)) {
+        $error = 'Por favor complete todos los campos';
+    } else {
         $conexion = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
-
-        // Consulta SQL para verificar las credenciales utilizando una consulta preparada
-        $consulta = "SELECT US.IdUsuario, US.RFC, US.Contrasena, US.Nombre, PE.IdPerfil, PE.DesPerfil, US.Avatar
-                    FROM tbp_usuarios as US
-                    INNER JOIN tbc_perfiles as PE ON US.IdPerfil = PE.IdPerfil
-                    WHERE US.RFC = ?";
-
-        // Preparar la consulta
-        $stmt = $conexion->prepare($consulta);
-
-        // Vincular los parámetros
-        $stmt->bind_param("s", $RFCUser);
-
-        // Ejecutar la consulta
-        $stmt->execute();
-
-        // Obtener el resultado
-        $resultado = $stmt->get_result();
-
-        if ($resultado->num_rows > 0) {
-            // Usuario encontrado, verificar la contraseña
-            $fila = $resultado->fetch_assoc();
-
-            if ($contrasena == $fila["Contrasena"]) {
-
-                if($RFCUser == $contrasena)
-                {
-                    if($fila["IdPerfil"] == 1)
-                    {
-                        $_SESSION["idusuario"] = $fila["IdUsuario"];
-                        $_SESSION["nombre"] = $fila["Nombre"];
-                        $_SESSION["Avatar"] = $fila["Avatar"];
-                        //echo "Redirigiendo a modificar datos de usuario...1";
-                        header("Location: datos_usuario.php");
-                    }
-                    else if($fila["IdPerfil"] == 2)
-                    {
-                        $_SESSION["idusuario"] = $fila["IdUsuario"];
-                        $_SESSION["nombre"] = $fila["Nombre"];
-                        $_SESSION["Avatar"] = $fila["Avatar"];
-                        //echo "Redirigiendo a modificar datos de usuario...2";
-                        header("Location: datos_usuario.php");
-                    }
-                    exit();
-                }
-                else
-                {
-                    echo "Redirigiendo a Inicio...";
-                    $_SESSION["idusuario"] = $fila["IdUsuario"];
-                    $_SESSION["nombre"] = $fila["Nombre"];
-                    $_SESSION["perfil"] = $fila["DesPerfil"];
-                    $_SESSION["Avatar"] = $fila["Avatar"];
-                    
-                    if($fila["IdPerfil"] == 1)
-                    {
-                        header("Location: home_admin.php");
-                    }
-                    else if($fila["IdPerfil"] == 2)
-                    {
-                        header("Location: home.php");
-                    }
-                    exit();
-                }
-
-            } else {
-                echo '<script type="text/javascript">alert("Contraseña incorrecta");</script>';
-            }
+        
+        if ($conexion->connect_error) {
+            $error = 'Error de conexión. Intente más tarde.';
         } else {
-            echo '<script type="text/javascript">alert("Usuario no encontrado");</script>';
+            // Consulta preparada
+            $consulta = "SELECT IdUsuario, RFC, Contrasena, Nombre, IdPerfil, Avatar, 
+                               RequiereCambioPassword, Estatus
+                        FROM tbp_usuarios 
+                        WHERE RFC = ? AND Estatus = 1";
+            
+            $stmt = $conexion->prepare($consulta);
+            $stmt->bind_param("s", $rfcUser);
+            $stmt->execute();
+            $resultado = $stmt->get_result();
+            
+            if ($resultado->num_rows > 0) {
+                $usuario = $resultado->fetch_assoc();
+                
+                // Verificar contraseña hasheada
+                if (password_verify($password, $usuario["Contrasena"])) {
+                    
+                    // Configurar sesión
+                    $_SESSION["idusuario"] = $usuario["IdUsuario"];
+                    $_SESSION["nombre"] = $usuario["Nombre"];
+                    $_SESSION["perfil"] = $usuario["IdPerfil"];
+                    $_SESSION["Avatar"] = $usuario["Avatar"];
+                    
+                    // Verificar si es primer ingreso (RFC == Password)
+                    if ($usuario["RequiereCambioPassword"] == 1 || $rfcUser == $password) {
+                        // Primer ingreso - ir a actualizar datos
+                        header("Location: datos_usuario.php");
+                        exit();
+                    } else {
+                        // Login normal - redirigir según perfil
+                        if ($usuario["IdPerfil"] == 1) {
+                            header("Location: home_admin.php");
+                        } else if ($usuario["IdPerfil"] == 2) {
+                            header("Location: home.php");
+                        }
+                        exit();
+                    }
+                    
+                } else {
+                    $error = 'RFC o contraseña incorrectos';
+                }
+            } else {
+                $error = 'RFC o contraseña incorrectos';
+            }
+            
+            $stmt->close();
+            $conexion->close();
         }
-
-        // Cerrar la conexión a la base de datos
-        $conexion->close();
     }
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
 
 <head>
     <meta charset="UTF-8">
-    <title>Archandel</title>
+    <title>Archandel - Iniciar Sesión</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <meta name="keywords" content="Archanděl, desarrollos, Desarrollos, departamentos, Departamentos, casas, Casas, renta, Renta, venta, Venta, residencias, Residencias, oficinas, Oficinas, proyectos inmobiliarios, lujo, CDMX, área metropolitana">
-    <meta name="description" content="Archanděl Desarrollos Inmobiliarios en CDMX y área metropolitana. Creamos espacios de alto nivel que potencian la calidad de vida, combinando diseño, innovación y exclusividad.">
+    <meta name="keywords" content="Archandél, desarrollos, Desarrollos, departamentos, Departamentos, casas, Casas, renta, Renta, venta, Venta, residencias, Residencias, oficinas, Oficinas, proyectos inmobiliarios, lujo, CDMX, área metropolitana">
+    <meta name="description" content="Archandél Desarrollos Inmobiliarios en CDMX y área metropolitana. Creamos espacios de alto nivel que potencian la calidad de vida, combinando diseño, innovación y exclusividad.">
 
-    <!-- Favicon icon -->
-	<link rel="icon" href="/favicon.png" type="image/x-icon">
+    <link rel="icon" href="/favicon.png" type="image/x-icon">
 
     <link rel="stylesheet" href="font/iconsmind-s/css/iconsminds.css" />
     <link rel="stylesheet" href="font/simple-line-icons/css/simple-line-icons.css" />
@@ -113,20 +95,24 @@
     <main>
         <div class="container">
             <div class="row h-100">
-                <div class="col-12 col-md-10 mx-auto my-auto">
+                <div class="col-12 col-md-4 mx-auto my-auto">
                     <div class="card auth-card">
-                        <div class="position-relative image-side">
-
-                            <p class="text-white h6 mb-3 text-justify">Utiliza tus credenciales para iniciar sesión, por favor. Si aún no eres miembro, por favor <a href="#" class="text-white font-weight-bold">solicita tu regístro.</a>.</p>
-                        </div>
-
                         <div class="form-side">
-                            <span class="logo-single"></span>
+                            <div class="align-items-center text-center">
+                                <img class="mb-5" src="logos/black.png" alt="Archandel">
+                            </div>
                             
-                            <h6 class="mb-4">Iniciar Sesión</h6>
+                            <h6 class="mt-4 mb-5">Iniciar Sesión</h6>
+                            
+                            <?php if (!empty($error)): ?>
+                            <div class="alert alert-danger" role="alert">
+                                <i class="simple-icon-exclamation"></i> <?php echo $error; ?>
+                            </div>
+                            <?php endif; ?>
+                            
                             <form action="login.php" method="post">
                                 <label class="form-group has-float-label mb-4">
-                                    <input type="text" class="form-control" id="username" name="username" placeholder="" required />
+                                    <input type="text" class="form-control" id="username" name="username" placeholder="" value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>" required />
                                     <span>RFC</span>
                                 </label>
 
@@ -134,8 +120,9 @@
                                     <input type="password" class="form-control" id="password" name="password" placeholder="" required />
                                     <span>Contraseña</span>
                                 </label>
+                                
                                 <div class="d-flex justify-content-between align-items-center">
-                                    <a href="olvidasteContraseña.php">¿Olvidaste tu contraseña?</a>
+                                    <a href="recuperar_password.php">¿Olvidaste tu contraseña?</a>
                                     <button class="btn btn-primary btn-lg btn-shadow" type="submit">ENTRAR</button>
                                 </div>
                             </form>

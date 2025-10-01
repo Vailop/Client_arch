@@ -2940,13 +2940,23 @@ $.dore = function (element, options) {
 
       $(".data-table-feature").DataTable({
         sDom: '<"row view-filter"<"col-sm-12"<"float-right"l><"float-left"f><"clearfix">>>t<"row view-pager"<"col-sm-12"<"text-center"ip>>>',
-        "columns": [
-          { "data": "name" },
-          { "data": "position" },
-          { "data": "office" },
-          { "data": "age" },
-          { "data": "start_date" },
-          { "data": "salary" }
+        "order": [[ 0, "asc" ]], // Forzar orden por primera columna
+        "columnDefs": [
+          {
+            "targets": 0,
+            "type": "date",
+            "render": function(data, type, row) {
+              if (type === 'sort' || type === 'type') {
+                // Convertir dd/mm/yyyy a formato sorteable yyyy-mm-dd
+                if (data && data.indexOf('/') > -1) {
+                  var parts = data.split('/');
+                  return parts[2] + '-' + parts[1] + '-' + parts[0];
+                }
+                return data;
+              }
+              return data;
+            }
+          }
         ],
         drawCallback: function () {
           $($(".dataTables_wrapper .pagination li:first-of-type"))
@@ -2959,13 +2969,28 @@ $.dore = function (element, options) {
           $(".dataTables_wrapper .pagination").addClass("pagination-sm");
         },
         language: {
+          "decimal": "",
+          "emptyTable": "No hay datos disponibles en la tabla",
+          "info": "Mostrando _START_ a _END_ de _TOTAL_ registros",
+          "infoEmpty": "Mostrando 0 a 0 de 0 registros",
+          "infoFiltered": "(filtrado de _MAX_ registros totales)",
+          "infoPostFix": "",
+          "thousands": ",",
+          "lengthMenu": "Elementos por página _MENU_",
+          "loadingRecords": "Cargando...",
+          "processing": "Procesando...",
+          "search": "Buscar: ",
+          "zeroRecords": "No se encontraron registros coincidentes",
           paginate: {
-            previous: "<i class='simple-icon-arrow-left'></i>",
-            next: "<i class='simple-icon-arrow-right'></i>"
+            "first": "Primero",
+            "last": "Último",
+            "next": "<i class='simple-icon-arrow-right'></i>",
+            "previous": "<i class='simple-icon-arrow-left'></i>"
           },
-          search: "_INPUT_",
-          searchPlaceholder: "Search...",
-          lengthMenu: "Items Per Page _MENU_"
+          "aria": {
+            "sortAscending": ": Activar para ordenar la columna de manera ascendente",
+            "sortDescending": ": Activar para ordenar la columna de manera descendente"
+          }
         },
       });
 

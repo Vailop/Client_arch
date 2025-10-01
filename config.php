@@ -3,11 +3,11 @@
     $dbHost = '127.0.0.1';
     $dbName = 'admon_arch';
     $dbUser = 'root';
-    $dbPass = 'root1234';
+    $dbPass = '';
 
     //Produccion
     // $dbHost = 'localhost';
-    // $dbName = 'byjanjoc_admon_arch';
+    // $dbName = 'byjanjoc_archandel';
     // $dbUser = 'byjanjoc_root';
-    // $dbPass = 'root1234root1234';
+    // $dbPass = 'FrEkAbep8e+6';
 ?>

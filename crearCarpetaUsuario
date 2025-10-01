@@ -1,0 +1,56 @@
+<?php
+// En config.php o archivo de helpers
+
+function crearCarpetaUsuario($idUsuario) {
+    $rutaBase = $_SERVER['DOCUMENT_ROOT'] . '/uploads/usuarios/' . $idUsuario;
+    
+    if (!file_exists($rutaBase)) {
+        mkdir($rutaBase, 0755, true);
+        mkdir($rutaBase . '/documentos', 0755, true);
+        
+        // Archivo .htaccess para protección
+        $htaccess = "Options -Indexes\n";
+        $htaccess .= "Order Deny,Allow\n";
+        $htaccess .= "Allow from all\n";
+        file_put_contents($rutaBase . '/.htaccess', $htaccess);
+        
+        return true;
+    }
+    return false;
+}
+
+function guardarAvatar($idUsuario, $archivo) {
+    $rutaUsuario = $_SERVER['DOCUMENT_ROOT'] . '/uploads/usuarios/' . $idUsuario;
+    
+    // Validar archivo
+    $extensionesPermitidas = ['jpg', 'jpeg', 'png', 'gif'];
+    $extension = strtolower(pathinfo($archivo['name'], PATHINFO_EXTENSION));
+    
+    if (!in_array($extension, $extensionesPermitidas)) {
+        return ['success' => false, 'message' => 'Formato no permitido'];
+    }
+    
+    if ($archivo['size'] > 2 * 1024 * 1024) { // 2MB
+        return ['success' => false, 'message' => 'Archivo muy grande'];
+    }
+    
+    // Eliminar avatar anterior si existe
+    $archivosAntiguos = glob($rutaUsuario . '/avatar_*');
+    foreach ($archivosAntiguos as $archivoAntiguo) {
+        unlink($archivoAntiguo);
+    }
+    
+    // Guardar nuevo avatar
+    $timestamp = time();
+    $nombreFinal = "avatar_{$timestamp}.{$extension}";
+    $rutaFinal = $rutaUsuario . '/' . $nombreFinal;
+    
+    if (move_uploaded_file($archivo['tmp_name'], $rutaFinal)) {
+        // Ruta relativa para BD
+        $rutaBD = "usuarios/{$idUsuario}/{$nombreFinal}";
+        return ['success' => true, 'ruta' => $rutaBD];
+    }
+    
+    return ['success' => false, 'message' => 'Error al guardar'];
+}
+?>

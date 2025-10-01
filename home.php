@@ -39,12 +39,58 @@
     <link rel="stylesheet" href="css/main.css" />
 
     <style>
+        /* Alertas */
+        .alerta-item {
+            padding: 10px 12px;
+            border-left: 4px solid;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.03);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .alerta-item:hover {
+            background: rgba(0, 0, 0, 0.08);
+            transform: translateX(3px);
+        }
+
+        .alerta-critica { border-color: #dc3545; }
+        .alerta-alta { border-color: #ffc107; }
+        .alerta-media { border-color: #fd7e14; }
+        .alerta-info { border-color: #28a745; }
+
+        .alerta-titulo {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 3px;
+        }
+
+        .alerta-mensaje {
+            font-size: 12px;
+            color: #666;
+        }
+
+        #notificationDropdown .spinner-border-sm {
+            width: 1.5rem;
+            height: 1.5rem;
+        }
         /* Asegurar que las tarjetas de progreso muestren todo el contenido */
         .card.dashboard-progress {
             height: auto !important;
             min-height: auto !important;
         }
-        
+
+        .card.dashboard-progress .progress {
+            height: 8px;
+            border-radius: 4px;
+        }
+
+        /* Colores para las barras */
+        .progress-bar.bg-danger { background-color: #dc3545 !important; }
+        .progress-bar.bg-warning { background-color: #ffc107 !important; }
+        .progress-bar.bg-success { background-color: #28a745 !important; }
+                
         .card.dashboard-progress .card-body {
             height: auto !important;
             max-height: none !important;
@@ -113,19 +159,15 @@
                     <button class="header-icon btn btn-empty" type="button" id="notificationButton"
                         data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         <i class="simple-icon-bell"></i>
-                        <span class="count">1</span>
+                        <span class="count" id="alertasCount">0</span>
                     </button>
-                    <div class="dropdown-menu dropdown-menu-right mt-3 position-absolute" id="notificationDropdown">
-                        <div class="scroll">
-                            <div class="d-flex flex-row mb-3 pb-3 border-bottom">
-                                <a href="#">
-                                    <img src="img/profiles/l-2.jpg" alt="Notification Image" class="img-thumbnail list-thumbnail xsmall border-0 rounded-circle" />
-                                </a>
-                                <div class="pl-3">
-                                    <a href="#">
-                                        <p class="font-weight-medium mb-1">Joisse Kaycee just sent a new comment!</p>
-                                        <p class="text-muted mb-0 text-small">09.04.2018 - 12:45</p>
-                                    </a>
+                    <div class="dropdown-menu dropdown-menu-right mt-3 position-absolute" id="notificationDropdown" style="width: 350px; max-height: 400px; overflow-y: auto;">
+                        <div class="p-3">
+                            <h6 class="mb-3">Notificaciones</h6>
+                            <div id="alertasContainer">
+                                <div class="text-center py-3">
+                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    <p class="mt-2 mb-0 text-muted small">Cargando...</p>
                                 </div>
                             </div>
                         </div>
@@ -295,7 +337,16 @@
                             <div>
                                 <i class="iconsminds-financial mr-2 text-white align-text-bottom d-inline-block"></i>
                                 <div>
-                                    <p class="lead text-white">25 Mensualidades restantes</p>
+                                    <?php
+                                        $sqlMens = "SELECT COUNT(*) AS restantes FROM tbr_pagos WHERE IdUsuario = ? AND Estatus = 1";
+                                        $stmtMens = $conexion->prepare($sqlMens);
+                                        $stmtMens->bind_param('i', $idUsuario);
+                                        $stmtMens->execute();
+                                        $resMens = $stmtMens->get_result();
+                                        $mensRestantes = $resMens->fetch_assoc()['restantes'] ?? 0;
+                                        $stmtMens->close();
+                                    ?>
+                                    <p class="lead text-white"><?= $mensRestantes ?> Mensualidades restantes</p>
                                 </div>
                             </div>
                         </a>
@@ -376,17 +427,19 @@
                                     $porcentaje = $valorObjetivo > 0 ? round(($valorActual / $valorObjetivo) * 100, 2) : 0;
                                     $valorActualFmt = rtrim(rtrim(number_format($valorActual, 2, '.', ''), '0'), '.');
                                     $valorObjetivoFmt = rtrim(rtrim(number_format($valorObjetivo, 2, '.', ''), '0'), '.');
+
+                                    // Determinar color según porcentaje
+                                    $colorBarra = 'bg-primary';
+                                    if ($porcentaje >= 100) $colorBarra = 'bg-success';
+                                    elseif ($porcentaje < 50) $colorBarra = 'bg-danger';
+                                    elseif ($porcentaje < 80) $colorBarra = 'bg-warning';
                                 ?>
                                 <div class="mb-4">
                                     <p class="mb-2"><?= htmlspecialchars($categoria) ?>
-                                        <span class="float-right text-muted"><?= $valorActualFmt ?>/<?= $valorObjetivoFmt ?></span>
+                                        <strong><?= $porcentaje ?>%</strong> 
                                     </p>
                                     <div class="progress">
-                                        <div class="progress-bar" role="progressbar" 
-                                            aria-valuenow="<?= $porcentaje ?>" 
-                                            aria-valuemin="0" 
-                                            aria-valuemax="100"
-                                            style="width: <?= $porcentaje ?>%;"></div>
+                                        <div class="progress-bar <?= $colorBarra ?>" role="progressbar" aria-valuenow="<?= $porcentaje ?>" aria-valuemin="0" aria-valuemax="100" style="width: <?= $porcentaje ?>%;"></div>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -426,10 +479,50 @@
                     $nom = htmlspecialchars($d['Nombre_Desarrollo'], ENT_QUOTES, 'UTF-8');
             ?>
             <div class="row">
-                <div class="col-lg-12 mb-4">
-                    <div class="card">
+                <!-- Gauge circular - 50% -->
+                <div class="col-lg-4 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center d-flex flex-column">
+                            <h5 class="card-title mb-3">Plusvalía Total</h5>
+                            
+                            <!-- Gauge más grande para llenar el espacio -->
+                            <div class="flex-grow-1 d-flex align-items-center justify-content-center">
+                                <div style="width: 320px; height: 320px; position: relative; margin: 20px 0;">
+                                    <canvas id="gaugeChart-<?= $idD ?>"></canvas>
+                                    <div style="position: absolute; top: 58%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 100%;">
+                                        <div id="gaugeValue-<?= $idD ?>" style="font-size: 48px; font-weight: 700; line-height: 1;">0%</div>
+                                        <div class="text-muted" style="font-size: 13px; margin-top: 8px;">Ganancia acumulada</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Datos en fila horizontal -->
+                            <div class="mt-auto pt-3" style="border-top: 1px solid #e9ecef;">
+                                <div class="row text-center">
+                                    <div class="col-4">
+                                        <small class="text-muted d-block mb-1" style="font-size: 10px; text-transform: uppercase;">Inversión</small>
+                                        <strong id="inversionInicial-<?= $idD ?>" style="font-size: 15px; display: block;">$0</strong>
+                                    </div>
+                                    <div class="col-4" style="border-left: 1px solid #e9ecef; border-right: 1px solid #e9ecef;">
+                                        <small class="text-muted d-block mb-1" style="font-size: 10px; text-transform: uppercase;">Valor Actual</small>
+                                        <strong id="valorActual-<?= $idD ?>" style="font-size: 15px; display: block; color: #28a745;">$0</strong>
+                                    </div>
+                                    <div class="col-4">
+                                        <small class="text-muted d-block mb-1" style="font-size: 10px; text-transform: uppercase;">Ganancia</small>
+                                        <strong id="gananciaNeta-<?= $idD ?>" style="font-size: 15px; display: block; color: #ffc107;">$0</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Gráfico de líneas - 50% -->
+                <div class="col-lg-8 mb-4">
+                    <div class="card h-100">
                         <div class="card-body">
-                            <h5 class="mb-3" id="salesTitle-<?= $idD ?>">Plusvalía <?= $nom ?></h5>
+                            <h5 class="mb-3">Evolución de Plusvalía - <?= $nom ?></h5>
+                            <div id="statsContainer-<?= $idD ?>" class="mb-3"></div>
                             <div style="height:320px">
                                 <canvas id="salesChart-<?= $idD ?>"></canvas>
                             </div>
@@ -441,6 +534,33 @@
                 endwhile; 
                 $stmtPlusvalia->close();
             ?>
+
+            <div class="row">
+                <!-- GRÁFICO DONUT: Estado de Pagos -->
+                <div class="col-lg-4 mb-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h6 class="card-title mb-4">Estado de Pagos</h6>
+                            <div style="height:220px; position:relative;">
+                                <canvas id="donutPagos"></canvas>
+                            </div>
+                            <div id="estadoPagosLegend" class="mt-3"></div>
+                        </div>
+                    </div>
+                </div>
+
+                 <!-- GRÁFICO DE CASCADA: Construcción de Valor -->
+                <div class="col-lg-8 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="mb-3">Construcción de Valor - <?= $nom ?></h5>
+                            <div style="height:300px">
+                                <canvas id="waterfallChart-<?= $idD ?>"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>                
+            </div>
         </div>
     </main>
 
@@ -472,81 +592,486 @@
     <script src="js/scripts.js"></script>
 
     <script>
-        (async function () {
-        const anio = new Date().getFullYear();
-
-        // Selecciona todos los canvases que comienzan con "salesChart-<IdDesarrollo>"
-        const canvases = document.querySelectorAll('canvas[id^="salesChart-"]');
-
-        for (const cv of canvases) {
-            const parts = cv.id.split('-');           // ["salesChart", "123"]
-            const idDes = Number(parts[1]);
-            if (!idDes) continue;
-
-            try {
-            const res  = await fetch(`plusvalia_mes.php?IdDesarrollo=${idDes}&anio=${anio}`);
-            const json = await res.json();
-
-            // El título ya está establecido desde PHP, no necesitamos cambiarlo aquí
-            // Simplemente mantenemos la lógica del gráfico
-
-            // Calcula rango Y con los valores existentes
-            const vals = json.valorM2.filter(v => v != null);
-            const min  = vals.length ? Math.min(...vals) : 0;
-            const max  = vals.length ? Math.max(...vals) : 100;
-            const pad  = Math.max(10, (max - min) * 0.1);
-
-            // Construye el gráfico
-            const ctx = cv.getContext('2d');
-            new Chart(ctx, {
-                type: "LineWithShadow", // si no ves nada, prueba "line"
-                data: {
-                labels: json.labels, // ['Ene', 'Feb', ...]
-                datasets: [{
-                    label: "Valor m²",
-                    data: json.valorM2, // [número o null]
-                    borderColor: window.themeColor1 || '#00365a',
-                    pointBackgroundColor: window.foregroundColor || '#00365a',
-                    pointBorderColor: window.themeColor1 || '#ffffff',
-                    pointHoverBackgroundColor: window.themeColor1 || '#ffffff',
-                    pointHoverBorderColor: window.foregroundColor || '#ffffff',
-                    pointRadius: 6,
-                    pointBorderWidth: 2,
-                    pointHoverRadius: 8,
-                    spanGaps: true, // no une puntos con null
-                    fill: false
-                }]
-                },
-                options: {
-                plugins: { datalabels: { display: false } },
-                responsive: true,
-                maintainAspectRatio: false,
-                legend: { display: false },
-                tooltips: {
-                    callbacks: {
-                    label: function (item) {
-                        var val = item.yLabel;
-                        var varPct = json.varPct[item.index];
-                        var line = ' $/m²: ' + Number(val).toLocaleString('es-MX', { maximumFractionDigits: 2 });
-                        if (varPct !== null && varPct !== undefined) line += ' (Δ ' + varPct + '%)';
-                        return line;
+        // Cargar alertas con sistema de visto persistente
+        function cargarAlertas() {
+            fetch('alertas.php')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error:', data.error);
+                        return;
                     }
+                    
+                    // Obtener timestamp de última vista
+                    const ultimaVista = localStorage.getItem('alertas_ultima_vista');
+                    const ahora = Date.now();
+                    const cincoMinutos = 300000; // 5 minutos en milisegundos
+                    
+                    const badge = document.getElementById('alertasCount');
+                    const container = document.getElementById('alertasContainer');
+                    
+                    // Verificar si ya vio las alertas hace menos de 5 minutos
+                    const yaVisto = ultimaVista && (ahora - parseInt(ultimaVista)) < cincoMinutos;
+                    
+                    // Actualizar badge
+                    if (yaVisto || data.total === 0) {
+                        badge.style.display = 'none';
+                    } else {
+                        badge.style.display = '';
+                        badge.textContent = data.total;
+                        
+                        // Color según prioridad
+                        if (data.criticas > 0) {
+                            badge.style.backgroundColor = '#ffffff';
+                        } else {
+                            badge.style.backgroundColor = '';
+                        }
                     }
-                },
-                scales: {
-                    yAxes: [{
-                    gridLines: { display: true, lineWidth: 1, color: "rgba(0,0,0,0.1)", drawBorder: false },
-                    ticks: { beginAtZero: false, min: Math.floor(min - pad), max: Math.ceil(max + pad) }
-                    }],
-                    xAxes: [{ gridLines: { display: false } }]
-                }
-                }
-            });
-
-            } catch (e) {
-            console.error('Error cargando plusvalía para IdDesarrollo=' + idDes, e);
-            }
+                    
+                    // Mostrar alertas en el dropdown
+                    if (data.total === 0) {
+                        container.innerHTML = `
+                            <div class="text-center py-4">
+                                <i class="simple-icon-check" style="font-size: 32px; opacity: 0.3;"></i>
+                                <p class="text-muted small mt-2 mb-0">Todo al corriente</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    let html = '';
+                    data.alertas.forEach(alerta => {
+                        const clase = 'alerta-' + alerta.prioridad;
+                        html += `
+                            <div class="alerta-item ${clase}">
+                                <div class="alerta-titulo">
+                                    ${alerta.icono} ${alerta.titulo}
+                                </div>
+                                <div class="alerta-mensaje">${alerta.mensaje}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    container.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error cargando alertas:', error);
+                    document.getElementById('alertasContainer').innerHTML = `
+                        <div class="alert alert-danger small mb-0">Error al cargar notificaciones</div>
+                    `;
+                });
         }
+
+        // Evento al hacer click en la campana
+        document.addEventListener('DOMContentLoaded', function() {
+            // Cargar alertas al inicio
+            cargarAlertas();
+            
+            // Actualizar cada 5 minutos
+            setInterval(cargarAlertas, 300000);
+            
+            // Marcar como visto al hacer click en la campana
+            const btnNotif = document.getElementById('notificationButton');
+            if (btnNotif) {
+                btnNotif.addEventListener('click', function() {
+                    // Guardar timestamp de visualización
+                    localStorage.setItem('alertas_ultima_vista', Date.now().toString());
+                    
+                    // Ocultar badge después de medio segundo
+                    setTimeout(function() {
+                        const badge = document.getElementById('alertasCount');
+                        if (badge) {
+                            badge.style.display = 'none';
+                        }
+                    }, 500);
+                });
+            }
+        });
+    </script>
+
+    <script>
+        // === GRÁFICOS DE PLUSVALÍA CON GAUGE ===
+        (async function() {
+            const anio = new Date().getFullYear();
+            const canvases = document.querySelectorAll('canvas[id^="salesChart-"]');
+            const chartInstances = {};
+
+            for (const cv of canvases) {
+                const parts = cv.id.split('-');
+                const idDes = Number(parts[1]);
+                if (!idDes) continue;
+
+                try {
+                    const res = await fetch('plusvalia_mes.php?IdDesarrollo=' + idDes + '&anio=' + anio);
+                    const json = await res.json();
+
+                    if (json.error) {
+                        console.error('Error:', json.error);
+                        continue;
+                    }
+
+                    // === CREAR GAUGE CIRCULAR ===
+                    const gaugeCanvas = document.getElementById('gaugeChart-' + idDes);
+                    if (gaugeCanvas) {
+                        const ctx = gaugeCanvas.getContext('2d');
+                        
+                        let porcentaje = 0;
+                        let color = '#6c757d';
+                        
+                        if (json.plusvaliaTotalPct !== null && json.plusvaliaTotalPct !== undefined) {
+                            porcentaje = json.plusvaliaTotalPct;
+                            
+                            if (porcentaje >= 15) color = '#28a745';
+                            else if (porcentaje >= 10) color = '#5cb85c';
+                            else if (porcentaje >= 5) color = '#ffc107';
+                            else if (porcentaje >= 0) color = '#17a2b8';
+                            else color = '#dc3545';
+                        }
+                        
+                        const displayPct = Math.max(0, Math.min(100, Math.abs(porcentaje)));
+                        const resto = 100 - displayPct;
+                        
+                        new Chart(ctx, {
+                            type: 'doughnut',
+                            data: {
+                                datasets: [{
+                                    data: [displayPct, resto],
+                                    backgroundColor: [color, '#e9ecef'],
+                                    borderWidth: 0
+                                }]
+                            },
+                            options: {
+                                circumference: Math.PI,
+                                rotation: -Math.PI,
+                                cutout: '75%',
+                                responsive: true,
+                                maintainAspectRatio: true,
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: { enabled: false }
+                                }
+                            }
+                        });
+                        
+                        // Actualizar valor central
+                        const valueEl = document.getElementById('gaugeValue-' + idDes);
+                        if (valueEl) {
+                            valueEl.textContent = (porcentaje >= 0 ? '+' : '') + porcentaje.toFixed(1) + '%';
+                            valueEl.style.color = color;
+                        }
+                        
+                        // Actualizar montos con ganancia neta
+                        if (json.precioCompra && json.precioActual) {
+                            const compra = Number(json.precioCompra);
+                            const actual = Number(json.precioActual);
+                            const ganancia = actual - compra;
+                            
+                            document.getElementById('inversionInicial-' + idDes).textContent = 
+                                '$' + (compra >= 1000000 ? 
+                                    (compra / 1000000).toFixed(2) + 'M' : 
+                                    compra.toLocaleString('es-MX', {maximumFractionDigits: 0}));
+                            
+                            document.getElementById('valorActual-' + idDes).textContent = 
+                                '$' + (actual >= 1000000 ? 
+                                    (actual / 1000000).toFixed(2) + 'M' : 
+                                    actual.toLocaleString('es-MX', {maximumFractionDigits: 0}));
+                            
+                            // Ganancia neta
+                            const gananciaEl = document.getElementById('gananciaNeta-' + idDes);
+                            if (gananciaEl) {
+                                gananciaEl.textContent = 
+                                    (ganancia >= 0 ? '+$' : '-$') + 
+                                    (Math.abs(ganancia) >= 1000000 ? 
+                                        (Math.abs(ganancia) / 1000000).toFixed(2) + 'M' : 
+                                        Math.abs(ganancia).toLocaleString('es-MX', {maximumFractionDigits: 0}));
+                                gananciaEl.style.color = ganancia >= 0 ? '#28a745' : '#dc3545';
+                            }
+                        }
+                    }
+
+                    // === ESTADÍSTICAS ===
+                    const stats = json.estadisticas;
+                    if (stats && document.getElementById('statsContainer-' + idDes)) {
+                        let statsHTML = '<div class="row text-center small">';
+                        
+                        if (stats.ultimo !== null) {
+                            statsHTML += `
+                                <div class="col-md-3">
+                                    <span class="text-muted d-block">Valor Actual</span>
+                                    <strong>$${stats.ultimo.toLocaleString('es-MX', {maximumFractionDigits: 0})}/m²</strong>
+                                </div>
+                            `;
+                        }
+                        
+                        if (stats.variacionTotalPct !== null) {
+                            const esPositivo = stats.variacionTotalPct >= 0;
+                            statsHTML += `
+                                <div class="col-md-3">
+                                    <span class="text-muted d-block">Variación Anual</span>
+                                    <strong class="${esPositivo ? 'text-success' : 'text-danger'}">
+                                        ${esPositivo ? '↑' : '↓'} ${Math.abs(stats.variacionTotalPct).toFixed(1)}%
+                                    </strong>
+                                </div>
+                            `;
+                        }
+                        
+                        if (stats.promedio !== null) {
+                            statsHTML += `
+                                <div class="col-md-3">
+                                    <span class="text-muted d-block">Promedio</span>
+                                    <strong>$${Math.round(stats.promedio).toLocaleString('es-MX')}/m²</strong>
+                                </div>
+                            `;
+                        }
+                        
+                        if (stats.tendencia) {
+                            const iconos = {
+                                'alcista': '📈',
+                                'bajista': '📉',
+                                'estable': '➡️'
+                            };
+                            statsHTML += `
+                                <div class="col-md-3">
+                                    <span class="text-muted d-block">Tendencia</span>
+                                    <strong>${iconos[stats.tendencia]} ${stats.tendencia.charAt(0).toUpperCase() + stats.tendencia.slice(1)}</strong>
+                                </div>
+                            `;
+                        }
+                        
+                        statsHTML += '</div>';
+                        document.getElementById('statsContainer-' + idDes).innerHTML = statsHTML;
+                    }
+
+                    // === GRÁFICO DE LÍNEAS ===
+                    const vals = json.valorM2.filter(v => v != null);
+                    const min = vals.length ? Math.min(...vals) : 0;
+                    const max = vals.length ? Math.max(...vals) : 100;
+                    const pad = Math.max(10, (max - min) * 0.1);
+
+                    const ctx = cv.getContext('2d');
+                    chartInstances[idDes] = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: json.labels,
+                            datasets: [{
+                                label: 'Valor m² ' + json.anio,
+                                data: json.valorM2,
+                                borderColor: '#00365a',
+                                backgroundColor: 'rgba(0, 54, 90, 0.1)',
+                                pointBackgroundColor: '#00365a',
+                                pointBorderColor: '#ffffff',
+                                pointHoverBackgroundColor: '#ffffff',
+                                pointHoverBorderColor: '#00365a',
+                                pointRadius: 6,
+                                pointBorderWidth: 2,
+                                pointHoverRadius: 8,
+                                borderWidth: 3,
+                                spanGaps: true,
+                                fill: true,
+                                tension: 0.4
+                            }]
+                        },
+                        options: {
+                            plugins: { 
+                                datalabels: { display: false },
+                                legend: { display: false }
+                            },
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            tooltips: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    label: function(item) {
+                                        const val = item.yLabel;
+                                        if (val === null) return '';
+                                        
+                                        let line = 'Valor: $' + Number(val).toLocaleString('es-MX', {maximumFractionDigits: 0}) + '/m²';
+                                        
+                                        const varPct = json.varPct[item.index];
+                                        if (varPct !== null && varPct !== undefined) {
+                                            line += ' (' + (varPct >= 0 ? '+' : '') + varPct + '%)';
+                                        }
+                                        
+                                        return line;
+                                    }
+                                }
+                            },
+                            scales: {
+                                yAxes: [{
+                                    gridLines: { 
+                                        display: true, 
+                                        lineWidth: 1, 
+                                        color: "rgba(0,0,0,0.1)", 
+                                        drawBorder: false 
+                                    },
+                                    ticks: { 
+                                        beginAtZero: false, 
+                                        min: Math.floor(min - pad), 
+                                        max: Math.ceil(max + pad),
+                                        callback: function(value) {
+                                            return '$' + value.toLocaleString('es-MX');
+                                        }
+                                    }
+                                }],
+                                xAxes: [{ 
+                                    gridLines: { display: false } 
+                                }]
+                            }
+                        }
+                    });
+                
+                // === GRÁFICO DE CASCADA ===
+                const waterfallCanvas = document.getElementById('waterfallChart-' + idDes);
+                if (waterfallCanvas && json.precioCompra && json.precioActual) {
+                    const precioCompra = Number(json.precioCompra);
+                    const precioActual = Number(json.precioActual);
+                    const plusvalia = precioActual - precioCompra;
+                    
+                    const ctxWaterfall = waterfallCanvas.getContext('2d');
+                    
+                    new Chart(ctxWaterfall, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Inversión Inicial', 'Plusvalía', 'Valor Actual'],
+                            datasets: [{
+                                label: 'Valor',
+                                data: [precioCompra, plusvalia, precioActual],
+                                backgroundColor: [
+                                    '#00365a',
+                                    plusvalia >= 0 ? '#28a745' : '#dc3545',
+                                    '#17a2b8'
+                                ],
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const value = context.parsed.y;
+                                            return '$' + (value / 1000000).toFixed(2) + 'M';
+                                        }
+                                    }
+                                },
+                                // Etiquetas de datos en las barras
+                                datalabels: {
+                                    anchor: 'end',
+                                    align: 'top',
+                                    formatter: function(value) {
+                                        return '$' + (value / 1000000).toFixed(2) + 'M';
+                                    },
+                                    color: '#495057',
+                                    font: {
+                                        weight: 'bold',
+                                        size: 13
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '$' + (value / 1000000).toFixed(1) + 'M';
+                                        }
+                                    },
+                                    grid: {
+                                        display: true,
+                                        drawBorder: false
+                                    }
+                                },
+                                x: {
+                                    grid: {
+                                        display: false
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                } catch (e) {
+                    console.error('Error cargando plusvalía para IdDesarrollo=' + idDes, e);
+                }
+            }
+        })();
+    </script>
+
+    <script>
+        // === GRÁFICO DONUT: ESTADO DE PAGOS ===
+        (async function() {
+            try {
+                const res = await fetch('estado_pagos.php');
+                const data = await res.json();
+                
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    return;
+                }
+                
+                const ctx = document.getElementById('donutPagos').getContext('2d');
+                
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Pagados', 'Pendientes', 'Vencidos'],
+                        datasets: [{
+                            data: [data.pagados, data.pendientes, data.vencidos],
+                            backgroundColor: ['#28a745', '#ffc107', '#dc3545'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '60%',
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed || 0;
+                                        const total = data.total;
+                                        const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                        return label + ': ' + value + ' (' + pct + '%)';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // Leyenda personalizada con montos en pesos
+                const legendHTML = `
+                    <div class="row text-center small">
+                        <div class="col-4">
+                            <div style="width:12px; height:12px; background:#28a745; display:inline-block; margin-right:5px;"></div>
+                            <strong>${data.pagados}</strong> Pagados<br>
+                            <small class="text-muted">$${Number(data.monto_pagados).toLocaleString('es-MX', {maximumFractionDigits: 0})}</small>
+                        </div>
+                        <div class="col-4">
+                            <div style="width:12px; height:12px; background:#ffc107; display:inline-block; margin-right:5px;"></div>
+                            <strong>${data.pendientes}</strong> Pendientes<br>
+                            <small class="text-muted">$${Number(data.monto_pendientes).toLocaleString('es-MX', {maximumFractionDigits: 0})}</small>
+                        </div>
+                        <div class="col-4">
+                            <div style="width:12px; height:12px; background:#dc3545; display:inline-block; margin-right:5px;"></div>
+                            <strong>${data.vencidos}</strong> Vencidos<br>
+                            <small class="text-muted">$${Number(data.monto_vencidos).toLocaleString('es-MX', {maximumFractionDigits: 0})}</small>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('estadoPagosLegend').innerHTML = legendHTML;
+                
+            } catch (error) {
+                console.error('Error cargando estado de pagos:', error);
+            }
         })();
     </script>
 </body>
