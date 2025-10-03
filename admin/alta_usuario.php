@@ -1,7 +1,7 @@
 <?php
-require '../config.php';
-require '../funciones/crearCarpetaUsuario.php';
-require '../funciones/generar_pagos.php';
+require_once '../config.php';
+require_once '../funciones/crearCarpetaUsuario.php';
+
 session_start();
 
 // Verificar que sea administrador
@@ -88,29 +88,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtRelacion->bind_param('iisddssd', $nuevoIdUsuario, $idDesarrollo, $departamento, $metrosCuadrados, $precioCompra, $fechaFirma, $fechaVigencia, $enganche);
                 
                 if ($stmtRelacion->execute()) {
-                    // Crear carpetas del desarrollo para este usuario
-                    crearCarpetaDesarrollo($nuevoIdUsuario, $idDesarrollo, $departamento);
-                    
                     // Generar plan de pagos
-                    $resultadoPagos = generarPagosMensuales(
-                        $nuevoIdUsuario,
-                        $idDesarrollo,
-                        $departamento,
-                        $montoMensual,
-                        $numeroMeses,
-                        $fechaInicio
-                    );
-                    
-                    if ($resultadoPagos['success']) {
+                    $datosContrato = [
+                        'IdUsuario' => $nuevoIdUsuario,
+                        'IdDesarrollo' => $idDesarrollo,
+                        'Depto' => $departamento,
+                        'IdCliente' => $nuevoIdUsuario, // Asumiendo que IdCliente = IdUsuario
+                        'm2inicial' => $metrosCuadrados,
+                        'm2actual' => $metrosCuadrados,
+                        'Precio_Compraventa' => $precioCompra,
+                        'FechaInicio' => $fechaInicio,
+                        'MontoMensual' => $montoMensual,
+                        'NumeroMensualidades' => $numeroMeses
+                    ];
+
+                    // Incluir y ejecutar generación de pagos
+                    include_once '../funciones/generar_pagos.php';
+                    $resultadoPagos = generarPagosMensuales($conexion, $datosContrato);
+
+                    if ($resultadoPagos) {
                         $mensajeExito = "Usuario creado exitosamente. Se generaron {$numeroMeses} pagos mensuales.";
-                        
-                        // Enviar email con credenciales (opcional)
-                        // TODO: Implementar envío de correo
-                        
-                        // Limpiar formulario
                         $_POST = array();
                     } else {
-                        $mensajeError = 'Usuario creado pero hubo un error al generar los pagos: ' . $resultadoPagos['message'];
+                        $mensajeError = 'Usuario creado pero hubo un error al generar los pagos.';
                     }
                 } else {
                     $mensajeError = 'Error al asignar el desarrollo: ' . $stmtRelacion->error;

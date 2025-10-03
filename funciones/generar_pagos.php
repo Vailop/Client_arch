@@ -63,31 +63,4 @@
             return false;
         }
     }
-
-    // Crear conexión
-    $conexion = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
-
-    if ($conexion->connect_error) {
-        die("Error de conexión: " . $conexion->connect_error);
-    }
-
-    // EJEMPLO PRÁCTICO - Datos del contrato HAL200706VN2
-    $datosContrato = [
-        'IdUsuario' => 1,
-        'IdDesarrollo' => 1,
-        'Depto' => '1001',
-        'IdCliente' => 1,
-        'm2inicial' => 50472.84,
-        'm2actual' => 58920.03,
-        'Precio_Compraventa' => 5501539.64,
-        'FechaInicio' => '2024-11-14', // Fecha de firma del contrato
-        'MontoMensual' => 20000.00,
-        'NumeroMensualidades' => 30
-    ];
-
-    // Ejecutar generación
-    echo "=== GENERADOR DE PAGOS MENSUALES ===\n\n";
-    generarPagosMensuales($conexion, $datosContrato);
-
-    $conexion->close();
 ?>
