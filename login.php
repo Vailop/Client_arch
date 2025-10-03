@@ -41,20 +41,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $_SESSION["perfil"] = $usuario["IdPerfil"];
                     $_SESSION["Avatar"] = $usuario["Avatar"];
                     
-                    // Verificar si es primer ingreso (RFC == Password)
-                    if ($usuario["RequiereCambioPassword"] == 1 || $rfcUser == $password) {
-                        // Primer ingreso - ir a actualizar datos
-                        header("Location: datos_usuario.php");
-                        exit();
-                    } else {
-                        // Login normal - redirigir según perfil
-                        if ($usuario["IdPerfil"] == 1) {
-                            header("Location: home_admin.php");
-                        } else if ($usuario["IdPerfil"] == 2) {
-                            header("Location: home.php");
-                        }
+                    // ✅ ADMINISTRADORES: Acceso directo (sin forzar cambio de password)
+                    if ($usuario["IdPerfil"] == 1) {
+                        header("Location: home_admin.php");
                         exit();
                     }
+                    
+                    // ✅ CLIENTES: Verificar si es primer ingreso
+                    if ($usuario["RequiereCambioPassword"] == 1) {
+                        header("Location: datos_usuario.php");
+                        exit();
+                    }
+                    
+                    // ✅ CLIENTES: Login normal
+                    header("Location: home.php");
+                    exit();
                     
                 } else {
                     $error = 'RFC o contraseña incorrectos';

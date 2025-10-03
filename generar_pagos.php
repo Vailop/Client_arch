@@ -75,11 +75,11 @@
     $datosContrato = [
         'IdUsuario' => 1,
         'IdDesarrollo' => 1,
-        'Depto' => '701',
+        'Depto' => '1001',
         'IdCliente' => 1,
-        'm2inicial' => 50095.95,
-        'm2actual' => 58479.24,
-        'Precio_Compraventa' => 5460381.00,
+        'm2inicial' => 50472.84,
+        'm2actual' => 58920.03,
+        'Precio_Compraventa' => 5501539.64,
         'FechaInicio' => '2024-11-14', // Fecha de firma del contrato
         'MontoMensual' => 20000.00,
         'NumeroMensualidades' => 30

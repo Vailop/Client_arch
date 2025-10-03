@@ -110,6 +110,42 @@
     <link rel="stylesheet" href="css/main.css" />
 
     <style>
+        /* Alertas */
+        .alerta-item {
+            padding: 10px 12px;
+            border-left: 4px solid;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.03);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .alerta-item:hover {
+            background: rgba(0, 0, 0, 0.08);
+            transform: translateX(3px);
+        }
+
+        .alerta-critica { border-color: #dc3545; }
+        .alerta-alta { border-color: #ffc107; }
+        .alerta-media { border-color: #fd7e14; }
+        .alerta-info { border-color: #28a745; }
+
+        .alerta-titulo {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 3px;
+        }
+
+        .alerta-mensaje {
+            font-size: 12px;
+            color: #666;
+        }
+
+        #notificationDropdown .spinner-border-sm {
+            width: 1.5rem;
+            height: 1.5rem;
+        }
         .nav-tabs .nav-link {
             border: 1px solid transparent;
             border-top-left-radius: 0.25rem;
@@ -253,19 +289,15 @@
                     <button class="header-icon btn btn-empty" type="button" id="notificationButton"
                         data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         <i class="simple-icon-bell"></i>
-                        <span class="count">1</span>
+                        <span class="count" id="alertasCount">0</span>
                     </button>
-                    <div class="dropdown-menu dropdown-menu-right mt-3 position-absolute" id="notificationDropdown">
-                        <div class="scroll">
-                            <div class="d-flex flex-row mb-3 pb-3 border-bottom">
-                                <a href="#">
-                                    <img src="img/profiles/l-2.jpg" alt="Notification Image" class="img-thumbnail list-thumbnail xsmall border-0 rounded-circle" />
-                                </a>
-                                <div class="pl-3">
-                                    <a href="#">
-                                        <p class="font-weight-medium mb-1">Joisse Kaycee just sent a new comment!</p>
-                                        <p class="text-muted mb-0 text-small">09.04.2018 - 12:45</p>
-                                    </a>
+                    <div class="dropdown-menu dropdown-menu-right mt-3 position-absolute" id="notificationDropdown" style="width: 350px; max-height: 400px; overflow-y: auto;">
+                        <div class="p-3">
+                            <h6 class="mb-3">Notificaciones</h6>
+                            <div id="alertasContainer">
+                                <div class="text-center py-3">
+                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    <p class="mt-2 mb-0 text-muted small">Cargando...</p>
                                 </div>
                             </div>
                         </div>
@@ -690,6 +722,7 @@
     <script src="js/vendor/perfect-scrollbar.min.js"></script>
     <script src="js/vendor/datatables.min.js"></script>
     <script src="js/vendor/bootstrap-notify.min.js"></script>
+    <script src="js/payments.notify.js"></script>
     <script src="js/dore.script.js"></script>
     <script src="js/scripts.js"></script>
 
@@ -1022,6 +1055,104 @@
                     });
                 }
             });
+        });
+    </script>
+
+    <script>
+        // Cargar alertas con sistema de visto persistente
+        function cargarAlertas() {
+            fetch('alertas.php')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error:', data.error);
+                        return;
+                    }
+                    
+                    // Obtener timestamp de última vista
+                    const ultimaVista = localStorage.getItem('alertas_ultima_vista');
+                    const ahora = Date.now();
+                    const cincoMinutos = 300000; // 5 minutos en milisegundos
+                    
+                    const badge = document.getElementById('alertasCount');
+                    const container = document.getElementById('alertasContainer');
+                    
+                    // Verificar si ya vio las alertas hace menos de 5 minutos
+                    const yaVisto = ultimaVista && (ahora - parseInt(ultimaVista)) < cincoMinutos;
+                    
+                    // Actualizar badge
+                    if (yaVisto || data.total === 0) {
+                        badge.style.display = 'none';
+                    } else {
+                        badge.style.display = '';
+                        badge.textContent = data.total;
+                        
+                        // Color según prioridad
+                        if (data.criticas > 0) {
+                            badge.style.backgroundColor = '#ffffff';
+                        } else {
+                            badge.style.backgroundColor = '';
+                        }
+                    }
+                    
+                    // Mostrar alertas en el dropdown
+                    if (data.total === 0) {
+                        container.innerHTML = `
+                            <div class="text-center py-4">
+                                <i class="simple-icon-check" style="font-size: 32px; opacity: 0.3;"></i>
+                                <p class="text-muted small mt-2 mb-0">Todo al corriente</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    let html = '';
+                    data.alertas.forEach(alerta => {
+                        const clase = 'alerta-' + alerta.prioridad;
+                        html += `
+                            <div class="alerta-item ${clase}">
+                                <div class="alerta-titulo">
+                                    ${alerta.icono} ${alerta.titulo}
+                                </div>
+                                <div class="alerta-mensaje">${alerta.mensaje}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    container.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error cargando alertas:', error);
+                    document.getElementById('alertasContainer').innerHTML = `
+                        <div class="alert alert-danger small mb-0">Error al cargar notificaciones</div>
+                    `;
+                });
+        }
+
+        // Evento al hacer click en la campana
+        document.addEventListener('DOMContentLoaded', function() {
+            // Cargar alertas al inicio
+            cargarAlertas();
+            
+            // Actualizar cada 5 minutos
+            setInterval(cargarAlertas, 300000);
+            
+            // Marcar como visto al hacer click en la campana
+            const btnNotif = document.getElementById('notificationButton');
+            if (btnNotif) {
+                btnNotif.addEventListener('click', function() {
+                    // Guardar timestamp de visualización
+                    localStorage.setItem('alertas_ultima_vista', Date.now().toString());
+                    
+                    // Ocultar badge después de medio segundo
+                    setTimeout(function() {
+                        const badge = document.getElementById('alertasCount');
+                        if (badge) {
+                            badge.style.display = 'none';
+                        }
+                    }, 500);
+                });
+            }
         });
     </script>
 </body>

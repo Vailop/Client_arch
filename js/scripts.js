@@ -100,7 +100,7 @@ function loadStyle(href, callback) {
   $("body").append(themeColorsDom);
 
 
-  /* Default Theme Color, Border Radius and  Direction */
+  /* Default Theme Color, Border Radius and Direction */
   var theme = "dore.light.bluenavy.min.css";
   var direction = "ltr";
   var radius = "rounded";
@@ -128,7 +128,10 @@ function loadStyle(href, callback) {
   $(".radius-radio[data-radius='" + radius + "']").attr("checked", true);
   $("#switchDark").attr("checked", theme.indexOf("dark") > 0 ? true : false);
 
-  loadStyle("css/" + theme, onStyleComplete);
+  // ✅ CAMBIO PRINCIPAL: Detectar si estamos en subcarpeta
+  var cssPath = window.location.pathname.indexOf('/admin/') > -1 ? "../css/" : "css/";
+  loadStyle(cssPath + theme, onStyleComplete);
+  
   function onStyleComplete() {
     setTimeout(onStyleCompleteDelayed, 300);
   }
