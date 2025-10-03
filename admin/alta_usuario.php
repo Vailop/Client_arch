@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'IdUsuario' => $nuevoIdUsuario,
                         'IdDesarrollo' => $idDesarrollo,
                         'Depto' => $departamento,
-                        'IdCliente' => $nuevoIdUsuario, // Asumiendo que IdCliente = IdUsuario
+                        'IdCliente' => $nuevoIdUsuario,
                         'm2inicial' => $metrosCuadrados,
                         'm2actual' => $metrosCuadrados,
                         'Precio_Compraventa' => $precioCompra,
@@ -102,8 +102,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'NumeroMensualidades' => $numeroMeses
                     ];
 
-                    // Incluir y ejecutar generación de pagos
-                    include_once '../funciones/generar_pagos.php';
                     $resultadoPagos = generarPagosMensuales($conexion, $datosContrato);
 
                     if ($resultadoPagos) {
