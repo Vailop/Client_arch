@@ -189,6 +189,7 @@
             <div class="scroll">
                 <ul class="list-unstyled" data-link="dashboard">
                     <?php
+                        // Resetear el puntero del resultado de desarrollos para el menú
                         $sqlMenuDesarrollos = "SELECT IdDesarrollo, Nombre_Desarrollo 
                                             FROM tbp_desarrollos 
                                             WHERE Estatus = 1 
@@ -197,9 +198,39 @@
                         
                         if ($menuDesarrollos && $menuDesarrollos->num_rows > 0):
                             while ($devMenu = $menuDesarrollos->fetch_assoc()):
+                                $isActive = ($devMenu['IdDesarrollo'] == $idDesarrollo) ? 'true' : 'false';
+                                $showClass = ($devMenu['IdDesarrollo'] == $idDesarrollo) ? 'show' : '';
                     ?>
                         <li>
-                            <a href="admin/desarrollo_detalle.php?id=<?= $devMenu['IdDesarrollo'] ?>"><i class="iconsminds-folders"></i><span class="d-inline-block"><?= htmlspecialchars($devMenu['Nombre_Desarrollo']) ?></span></a>
+                            <a href="#" data-toggle="collapse" data-target="#collapseDev<?= $devMenu['IdDesarrollo'] ?>" aria-expanded="<?= $isActive ?>" aria-controls="collapseDev<?= $devMenu['IdDesarrollo'] ?>" class="rotate-arrow-icon <?= $isActive == 'true' ? '' : 'collapsed' ?>"><i class="simple-icon-arrow-down"></i><span class="d-inline-block"><?= htmlspecialchars($devMenu['Nombre_Desarrollo']) ?></span></a>
+                            <div id="collapseDev<?= $devMenu['IdDesarrollo'] ?>" class="collapse <?= $showClass ?>">
+                                <ul class="list-unstyled inner-level-menu">
+                                    <li>
+                                        <a href="alta_usuario.php?idDesarrollo=<?= $devMenu['IdDesarrollo'] ?>"><i class="iconsminds-add-user"></i><span class="d-inline-block">Alta de Usuario</span></a>
+                                    </li>
+                                    <li>
+                                        <a href="usuarios.php?idDesarrollo=<?= $devMenu['IdDesarrollo'] ?>"><i class="iconsminds-business-man-woman"></i><span class="d-inline-block">Administrar Usuarios</span></a>
+                                    </li>
+                                    <li>
+                                        <a href="validar_comprobantes.php?idDesarrollo=<?= $devMenu['IdDesarrollo'] ?>"><i class="iconsminds-file-edit"></i><span class="d-inline-block">Validar Comprobantes</span></a>
+                                    </li>
+                                    <li>
+                                        <a href="plan_pagos.php?idDesarrollo=<?= $devMenu['IdDesarrollo'] ?>"><i class="iconsminds-calendar-4"></i><span class="d-inline-block">Plan de Pagos</span></a>
+                                    </li>
+                                    <li>
+                                        <a href="actualizar_avance.php?idDesarrollo=<?= $devMenu['IdDesarrollo'] ?>"><i class="iconsminds-bar-chart-4"></i><span class="d-inline-block">Actualizar Avance</span></a>
+                                    </li>
+                                    <li>
+                                        <a href="actualizar_plusvalia.php?idDesarrollo=<?= $devMenu['IdDesarrollo'] ?>"><i class="iconsminds-line-chart-1"></i><span class="d-inline-block">Actualizar Plusvalía</span></a>
+                                    </li>
+                                    <li>
+                                        <a href="actualizar_plusvalia.php?idDesarrollo=<?= $devMenu['IdDesarrollo'] ?>"><i class="iconsminds-folder-cloud"></i><span class="d-inline-block">Gestión de Archivos</span></a>
+                                    </li>
+                                    <li>
+                                        <a href="actualizar_plusvalia.php?idDesarrollo=<?= $devMenu['IdDesarrollo'] ?>"><i class="iconsminds-file-clipboard"></i><span class="d-inline-block">Reportes</span></a>
+                                    </li>
+                                </ul>
+                            </div>
                         </li>
                     <?php 
                             endwhile;
