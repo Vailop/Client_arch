@@ -47,32 +47,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $precioCompra = (float)$_POST['precio_compra'];
     $fechaFirma = $_POST['fecha_firma'];
     $enganche = (float)$_POST['enganche'];
+    $escrituracion = (float)$_POST['escrituracion'];
+    $fechaEscrituracion = $_POST['fecha_escrituracion'];
     $montoMensual = (float)$_POST['monto_mensual'];
     $numeroMeses = (int)$_POST['numero_meses'];
     $fechaInicio = $_POST['fecha_inicio'];
     
-    // Calcular vigencia: fecha_firma + numero_meses
-    $fechaVigenciaCalculada = '';
-    if (!empty($fechaFirma) && $numeroMeses > 0) {
-        $fechaVigenciaCalculada = date('Y-m-d', strtotime($fechaFirma . " +{$numeroMeses} months"));
+    // Validaciones completas
+    if (empty($rfc) || empty($nombre) || empty($email) || empty($telefono) || empty($departamento) || 
+        $metrosCuadrados <= 0 || $precioM2Inicial <= 0 || $precioCompra <= 0 || empty($fechaFirma) || 
+        $enganche < 0 || $escrituracion < 0 || empty($fechaEscrituracion) || 
+        $montoMensual <= 0 || $numeroMeses <= 0 || empty($fechaInicio)) {
+        $mensajeError = 'Por favor complete todos los campos obligatorios correctamente';
+    } 
+    // Validar archivos obligatorios
+    elseif (!isset($_FILES['comprobante_inicial']) || $_FILES['comprobante_inicial']['error'] !== UPLOAD_ERR_OK) {
+        $mensajeError = 'El comprobante del enganche es obligatorio';
     }
-    
-    // Procesar archivos
-    $archivoComprobanteInicial = null;
-    $archivoPlano = null;
-    
-    if (isset($_FILES['comprobante_inicial']) && $_FILES['comprobante_inicial']['error'] === UPLOAD_ERR_OK) {
+    elseif (!isset($_FILES['plano_departamento']) || $_FILES['plano_departamento']['error'] !== UPLOAD_ERR_OK) {
+        $mensajeError = 'El plano del departamento es obligatorio';
+    }
+    else {
+        // Procesar archivos
         $archivoComprobanteInicial = $_FILES['comprobante_inicial'];
-    }
-    
-    if (isset($_FILES['plano_departamento']) && $_FILES['plano_departamento']['error'] === UPLOAD_ERR_OK) {
         $archivoPlano = $_FILES['plano_departamento'];
-    }
-    
-    // Validaciones
-    if (empty($rfc) || empty($nombre) || empty($email) || empty($departamento)) {
-        $mensajeError = 'Por favor complete todos los campos obligatorios';
-    } else {
+        
+        // Calcular vigencia: fecha_firma + numero_meses
+        $fechaVigenciaCalculada = '';
+        if (!empty($fechaFirma) && $numeroMeses > 0) {
+            $fechaVigenciaCalculada = date('Y-m-d', strtotime($fechaFirma . " +{$numeroMeses} months"));
+        }
+        
         // Verificar que el RFC no exista
         $sqlCheckRFC = "SELECT IdUsuario FROM tbp_usuarios WHERE RFC = ?";
         $stmtCheck = $conexion->prepare($sqlCheckRFC);
@@ -105,18 +110,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $rutaComprobanteInicial = null;
                 $rutaPlano = null;
                 
-                if ($archivoComprobanteInicial) {
-                    $resultadoComprobante = guardarComprobanteInicial($nuevoIdUsuario, $idDesarrollo, $departamento, $archivoComprobanteInicial);
-                    if ($resultadoComprobante['success']) {
-                        $rutaComprobanteInicial = $resultadoComprobante['ruta_relativa'];
-                    }
+                $resultadoComprobante = guardarComprobanteInicial($nuevoIdUsuario, $idDesarrollo, $departamento, $archivoComprobanteInicial);
+                if ($resultadoComprobante['success']) {
+                    $rutaComprobanteInicial = $resultadoComprobante['ruta_relativa'];
+                } else {
+                    $mensajeError = 'Error al guardar el comprobante';
+                    $stmtUsuario->close();
+                    $stmtCheck->close();
+                    goto end_process;
                 }
                 
-                if ($archivoPlano) {
-                    $resultadoPlano = guardarPlano($nuevoIdUsuario, $idDesarrollo, $departamento, $archivoPlano);
-                    if ($resultadoPlano['success']) {
-                        $rutaPlano = $resultadoPlano['ruta_relativa'];
-                    }
+                $resultadoPlano = guardarPlano($nuevoIdUsuario, $idDesarrollo, $departamento, $archivoPlano);
+                if ($resultadoPlano['success']) {
+                    $rutaPlano = $resultadoPlano['ruta_relativa'];
+                } else {
+                    $mensajeError = 'Error al guardar el plano';
+                    $stmtUsuario->close();
+                    $stmtCheck->close();
+                    goto end_process;
                 }
                 
                 // Insertar relación usuario-desarrollo
@@ -175,9 +186,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     $resultadoPagos = generarPagosMensuales($conexion, $datosContrato);
                     
+                    // PASO 3: Insertar pago de ESCRITURACIÓN al final
+                    if ($escrituracion > 0 && !empty($fechaEscrituracion)) {
+                        $sqlEscrituracion = "INSERT INTO tbr_pagos (
+                            IdUsuario, IdDesarrollo, Dpto, IdCliente,
+                            m2inicial, m2actual, Precio_Compraventa, Precio_Actual,
+                            FechaPago, Monto, Estatus, Concepto, CreatedAt
+                        ) VALUES (?, ?, ?, NULL, ?, NULL, ?, NULL, ?, ?, 1, 'Escrituración', NOW())";
+                        
+                        $stmtEscrituracion = $conexion->prepare($sqlEscrituracion);
+                        $stmtEscrituracion->bind_param('iisddsd',
+                            $nuevoIdUsuario, $idDesarrollo, $departamento,
+                            $precioM2Inicial, $precioCompra,
+                            $fechaEscrituracion, $escrituracion
+                        );
+                        $stmtEscrituracion->execute();
+                        $stmtEscrituracion->close();
+                    }
+                    
                     if ($resultadoPagos === true) {
-                        $totalPagos = $enganche > 0 ? $numeroMeses + 1 : $numeroMeses;
-                        $mensajeExito = "Usuario creado exitosamente. Se generaron {$totalPagos} pagos" . ($enganche > 0 ? " (1 enganche + {$numeroMeses} mensualidades)" : "") . ". Contraseña inicial: {$rfc}";
+                        $totalPagos = $numeroMeses;
+                        if ($enganche > 0) $totalPagos++;
+                        if ($escrituracion > 0) $totalPagos++;
+                        
+                        $detallePagos = [];
+                        if ($enganche > 0) $detallePagos[] = "1 enganche";
+                        $detallePagos[] = "{$numeroMeses} mensualidades";
+                        if ($escrituracion > 0) $detallePagos[] = "1 escrituración";
+                        
+                        $mensajeExito = "Usuario creado exitosamente. Se generaron {$totalPagos} pagos (" . implode(' + ', $detallePagos) . "). Contraseña inicial: {$rfc}";
                         $_POST = array();
                     } else {
                         $mensajeError = 'Usuario creado pero hubo un error al generar los pagos.';
@@ -196,9 +233,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $stmtCheck->close();
     }
+    
+    end_process:
 }
 ?>
-
 
 <!DOCTYPE html>
 <html lang="es">
@@ -215,7 +253,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="../css/vendor/bootstrap.min.css" />
     <link rel="stylesheet" href="../css/vendor/bootstrap.rtl.only.min.css" />
     <link rel="stylesheet" href="../css/vendor/component-custom-switch.min.css" />
-    <link rel="stylesheet" href="../css/vendor/perfect-scrollbar.css" />
     <link rel="stylesheet" href="../css/main.css" />
 
     <style>
@@ -440,8 +477,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     
                                     <div class="col-12 col-md-6 col-lg-3 mb-3">
                                         <div class="form-group">
-                                            <label>Teléfono</label>
-                                            <input type="tel" class="form-control" name="telefono" value="<?= isset($_POST['telefono']) ? htmlspecialchars($_POST['telefono']) : '' ?>" maxlength="15" placeholder="5512345678">
+                                            <label>Teléfono <span class="text-danger">*</span></label>
+                                            <input type="tel" class="form-control" name="telefono" value="<?= isset($_POST['telefono']) ? htmlspecialchars($_POST['telefono']) : '' ?>" required maxlength="15" placeholder="5512345678">
                                         </div>
                                     </div>
                                 </div>
@@ -454,8 +491,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <div class="row">
                                     <div class="col-12 col-md-4 col-lg-2 mb-3">
                                         <div class="form-group">
-                                            <label>Departamento <span class="text-danger">*</span></label>
+                                            <label>Número de Departamento <span class="text-danger">*</span></label>
                                             <input type="text" class="form-control" name="departamento" value="<?= isset($_POST['departamento']) ? htmlspecialchars($_POST['departamento']) : '' ?>" required placeholder="Ej: 201">
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12 col-md-6 col-lg-2 mb-3">
+                                        <div class="form-group">
+                                            <label>M² Totales <span class="text-danger">*</span></label>
+                                            <input type="number" step="0.01" class="form-control" name="metros_cuadrados" value="<?= isset($_POST['metros_cuadrados']) ? htmlspecialchars($_POST['metros_cuadrados']) : '' ?>" required placeholder="Ej: 128.5">
+                                            <small class="form-text text-muted">Superficie total construida</small>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12 col-md-6 col-lg-2 mb-3">
+                                        <div class="form-group">
+                                            <label>Precio por M² Inicial <span class="text-danger">*</span></label>
+                                            <input type="number" step="0.01" class="form-control" name="precio_m2_inicial" value="<?= isset($_POST['precio_m2_inicial']) ? htmlspecialchars($_POST['precio_m2_inicial']) : '' ?>" required placeholder="Ej: 46075.66">
+                                            <small class="form-text text-muted">Precio por m² al momento de la compra</small>
                                         </div>
                                     </div>
 
@@ -469,31 +522,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                                     <div class="col-12 col-md-6 col-lg-2 mb-3">
                                         <div class="form-group">
-                                            <label>Precio por M² Inicial</label>
-                                            <input type="number" step="0.01" class="form-control" name="precio_m2_inicial" value="<?= isset($_POST['precio_m2_inicial']) ? htmlspecialchars($_POST['precio_m2_inicial']) : '' ?>" placeholder="Ej: 46075.66">
-                                            <small class="form-text text-muted">Precio por m² al momento de la compra</small>
+                                            <label>Fecha Firma Contrato <span class="text-danger">*</span></label>
+                                            <input type="date" class="form-control" name="fecha_firma" value="<?= isset($_POST['fecha_firma']) ? htmlspecialchars($_POST['fecha_firma']) : '' ?>" required>
                                         </div>
                                     </div>
 
                                     <div class="col-12 col-md-4 col-lg-2 mb-3">
                                         <div class="form-group">
-                                            <label>M² Totales</label>
-                                            <input type="number" step="0.01" class="form-control" name="metros_cuadrados" value="<?= isset($_POST['metros_cuadrados']) ? htmlspecialchars($_POST['metros_cuadrados']) : '' ?>" placeholder="Ej: 128.5">
-                                            <small class="form-text text-muted">Superficie total construida</small>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-12 col-md-6 col-lg-2 mb-3">
-                                        <div class="form-group">
-                                            <label>Fecha Firma Contrato</label>
-                                            <input type="date" class="form-control" name="fecha_firma" value="<?= isset($_POST['fecha_firma']) ? htmlspecialchars($_POST['fecha_firma']) : '' ?>">
-                                        </div>
-                                    </div>
-
-                                    <div class="col-12 col-md-4 col-lg-2 mb-3">
-                                        <div class="form-group">
-                                            <label>Enganche</label>
-                                            <input type="number" step="0.01" class="form-control" name="enganche" value="<?= isset($_POST['enganche']) ? htmlspecialchars($_POST['enganche']) : '0' ?>" placeholder="Ej: 500000">
+                                            <label>Enganche <span class="text-danger">*</span></label>
+                                            <input type="number" step="0.01" class="form-control" name="enganche" value="<?= isset($_POST['enganche']) ? htmlspecialchars($_POST['enganche']) : '0' ?>" required placeholder="Ej: 500000" min="0">
                                             <small class="form-text text-muted">Primer Pago</small>
                                         </div>
                                     </div>
@@ -502,32 +539,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <div class="row">
                                     <div class="col-12 col-md-6 col-lg-4 mb-3">
                                         <div class="form-group">
-                                            <label>Comprobante del Enganche</label>
-                                            <input type="file" class="form-control" name="comprobante_inicial" accept=".pdf,.jpg,.jpeg,.png">
+                                            <label>Comprobante del Enganche <span class="text-danger">*</span></label>
+                                            <input type="file" class="form-control" name="comprobante_inicial" accept=".pdf,.jpg,.jpeg,.png" required>
                                             <small class="form-text text-muted">PDF, JPG o PNG. Máximo 5MB</small>
                                         </div>
                                     </div>
 
                                     <div class="col-12 col-md-6 col-lg-4 mb-3">
                                         <div class="form-group">
-                                            <label>Plano del Departamento</label>
-                                            <input type="file" class="form-control" name="plano_departamento" accept=".pdf,.jpg,.jpeg,.png">
+                                            <label>Plano del Departamento <span class="text-danger">*</span></label>
+                                            <input type="file" class="form-control" name="plano_departamento" accept=".pdf,.jpg,.jpeg,.png" required>
                                             <small class="form-text text-muted">PDF, JPG o PNG. Máximo 5MB</small>
                                         </div>
                                     </div>
 
                                     <div class="col-12 col-md-4 col-lg-2 mb-3">
                                         <div class="form-group">
-                                            <label>Escrituración</label>
-                                            <input type="number" step="0.01" class="form-control" name="escrituracion" value="<?= isset($_POST['escrituracion']) ? htmlspecialchars($_POST['escrituracion']) : '0' ?>" placeholder="Ej: 500000">
-                                            <small class="form-text text-muted">Ultimo Pago</small>
+                                            <label>Escrituración <span class="text-danger">*</span></label>
+                                            <input type="number" step="0.01" class="form-control" name="escrituracion" value="<?= isset($_POST['escrituracion']) ? htmlspecialchars($_POST['escrituracion']) : '0' ?>" required placeholder="Ej: 500000" min="0">
+                                            <small class="form-text text-muted">Último Pago</small>
                                         </div>
                                     </div>
                                     
                                     <div class="col-12 col-md-6 col-lg-2 mb-3">
                                         <div class="form-group">
-                                            <label>Fecha Firma De Escrituración</label>
-                                            <input type="date" class="form-control" name="fecha_escrituracion" value="<?= isset($_POST['fecha_escrituracion']) ? htmlspecialchars($_POST['fecha_escrituracion']) : '' ?>">
+                                            <label>Fecha de Escrituración <span class="text-danger">*</span></label>
+                                            <input type="date" class="form-control" name="fecha_escrituracion" value="<?= isset($_POST['fecha_escrituracion']) ? htmlspecialchars($_POST['fecha_escrituracion']) : '' ?>" required>
                                         </div>
                                     </div>
                                 </div>                                
@@ -540,7 +577,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <div class="row">
                                     <div class="col-12 col-md-6 col-lg-2 mb-3">
                                         <div class="form-group">
-                                            <label>Fecha de Pago Mensual<span class="text-danger">*</span></label>
+                                            <label>Fecha de Pago Mensual <span class="text-danger">*</span></label>
                                             <input type="date" class="form-control" name="fecha_inicio" value="<?= isset($_POST['fecha_inicio']) ? htmlspecialchars($_POST['fecha_inicio']) : '' ?>" required>
                                             <small class="form-text text-muted">Los pagos se generarán mensualmente a partir de esta fecha</small>
                                         </div>
@@ -549,7 +586,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <div class="col-12 col-md-6 col-lg-2 mb-3">
                                         <div class="form-group">
                                             <label>Monto Mensual <span class="text-danger">*</span></label>
-                                            <input type="number" step="0.01" class="form-control" name="monto_mensual" value="<?= isset($_POST['monto_mensual']) ? htmlspecialchars($_POST['monto_mensual']) : '' ?>" required placeholder="Ej: 20000">
+                                            <input type="number" step="0.01" class="form-control" name="monto_mensual" value="<?= isset($_POST['monto_mensual']) ? htmlspecialchars($_POST['monto_mensual']) : '' ?>" required placeholder="Ej: 20000" min="0.01">
                                         </div>
                                     </div>
                                     
