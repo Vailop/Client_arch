@@ -67,6 +67,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif (!isset($_FILES['plano_departamento']) || $_FILES['plano_departamento']['error'] !== UPLOAD_ERR_OK) {
         $mensajeError = 'El plano del departamento es obligatorio';
     }
+    elseif ($_FILES['comprobante_inicial']['size'] > 5242880) {
+        $mensajeError = 'El comprobante no debe superar 5MB';
+    }
+    elseif ($_FILES['plano_departamento']['size'] > 5242880) {
+        $mensajeError = 'El plano no debe superar 5MB';
+    }
+    elseif (!in_array($_FILES['comprobante_inicial']['type'], ['application/pdf', 'image/jpeg', 'image/png'])) {
+        $mensajeError = 'El comprobante debe ser PDF, JPG o PNG';
+    }
+    elseif (!in_array($_FILES['plano_departamento']['type'], ['application/pdf', 'image/jpeg', 'image/png'])) {
+        $mensajeError = 'El plano debe ser PDF, JPG o PNG';
+    }
     else {
         // Procesar archivos
         $archivoComprobanteInicial = $_FILES['comprobante_inicial'];
@@ -78,31 +90,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $fechaVigenciaCalculada = date('Y-m-d', strtotime($fechaFirma . " +{$numeroMeses} months"));
         }
         
-        // Verificar que el RFC no exista
-        $sqlCheckRFC = "SELECT IdUsuario FROM tbp_usuarios WHERE RFC = ?";
-        $stmtCheck = $conexion->prepare($sqlCheckRFC);
-        $stmtCheck->bind_param('s', $rfc);
-        $stmtCheck->execute();
-        $resultCheck = $stmtCheck->get_result();
+        // Verificar si el departamento ya está asignado en este desarrollo
+        $sqlCheckDpto = "SELECT IdUsuario FROM tbr_usuario_desarrollos WHERE IdDesarrollo = ? AND Dpto = ?";
+        $stmtCheckDpto = $conexion->prepare($sqlCheckDpto);
+        $stmtCheckDpto->bind_param('is', $idDesarrollo, $departamento);
+        $stmtCheckDpto->execute();
+        $resultCheckDpto = $stmtCheckDpto->get_result();
         
-        if ($resultCheck->num_rows > 0) {
-            $mensajeError = 'El RFC ya está registrado en el sistema';
+        if ($resultCheckDpto->num_rows > 0) {
+            $mensajeError = 'El departamento ' . $departamento . ' ya está asignado en este desarrollo';
+            $stmtCheckDpto->close();
         } else {
-            // Hashear contraseña (por defecto el RFC)
-            $passwordHash = password_hash($rfc, PASSWORD_DEFAULT);
+            $stmtCheckDpto->close();
             
-            // Insertar usuario
-            $sqlUsuario = "INSERT INTO tbp_usuarios (RFC, Contrasena, Nombre, Email, Telefono, IdPerfil, RequiereCambioPassword, Estatus, FechaRegistro) 
-                           VALUES (?, ?, ?, ?, ?, 2, 1, 1, NOW())";
-            $stmtUsuario = $conexion->prepare($sqlUsuario);
-            $stmtUsuario->bind_param('sssss', $rfc, $passwordHash, $nombre, $email, $telefono);
+            // Verificar si el RFC ya existe
+            $sqlCheckRFC = "SELECT IdUsuario FROM tbp_usuarios WHERE RFC = ?";
+            $stmtCheck = $conexion->prepare($sqlCheckRFC);
+            $stmtCheck->bind_param('s', $rfc);
+            $stmtCheck->execute();
+            $resultCheck = $stmtCheck->get_result();
             
-            if ($stmtUsuario->execute()) {
-                $nuevoIdUsuario = $stmtUsuario->insert_id;
+            $usuarioExistente = false;
+            $nuevoIdUsuario = 0;
+            
+            if ($resultCheck->num_rows > 0) {
+                // El usuario ya existe, usar ese usuario
+                $usuarioData = $resultCheck->fetch_assoc();
+                $nuevoIdUsuario = $usuarioData['IdUsuario'];
+                $usuarioExistente = true;
                 
-                // Crear carpetas del usuario
-                crearCarpetaUsuario($nuevoIdUsuario);
+                // Actualizar datos del usuario
+                $sqlUpdateUsuario = "UPDATE tbp_usuarios SET Nombre = ?, Correo_electronico = ?, Telefono = ? WHERE IdUsuario = ?";
+                $stmtUpdate = $conexion->prepare($sqlUpdateUsuario);
+                $stmtUpdate->bind_param('sssi', $nombre, $email, $telefono, $nuevoIdUsuario);
+                $stmtUpdate->execute();
+                $stmtUpdate->close();
                 
+            } else {
+                // Hashear contraseña (por defecto el RFC)
+                $passwordHash = password_hash($rfc, PASSWORD_DEFAULT);
+                
+                // Insertar usuario
+                $sqlUsuario = "INSERT INTO tbp_usuarios (RFC, Contrasena, Nombre, Correo_electronico, Telefono, IdPerfil, RequiereCambioPassword, Estatus, FechaUltimaActualizacion) 
+                               VALUES (?, ?, ?, ?, ?, 2, 1, 1, NOW())";
+                $stmtUsuario = $conexion->prepare($sqlUsuario);
+                $stmtUsuario->bind_param('sssss', $rfc, $passwordHash, $nombre, $email, $telefono);
+                
+                if ($stmtUsuario->execute()) {
+                    $nuevoIdUsuario = $stmtUsuario->insert_id;
+                    
+                    // Crear carpetas del usuario
+                    crearCarpetaUsuario($nuevoIdUsuario);
+                } else {
+                    $mensajeError = 'Error al crear el usuario: ' . $stmtUsuario->error;
+                    $stmtUsuario->close();
+                    $stmtCheck->close();
+                    goto end_process;
+                }
+                
+                $stmtUsuario->close();
+            }
+            
+            $stmtCheck->close();
+            
+            if ($nuevoIdUsuario > 0) {
                 // Crear carpetas del desarrollo para este usuario
                 crearCarpetaDesarrollo($nuevoIdUsuario, $idDesarrollo, $departamento);
                 
@@ -115,8 +166,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $rutaComprobanteInicial = $resultadoComprobante['ruta_relativa'];
                 } else {
                     $mensajeError = 'Error al guardar el comprobante';
-                    $stmtUsuario->close();
-                    $stmtCheck->close();
                     goto end_process;
                 }
                 
@@ -125,26 +174,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $rutaPlano = $resultadoPlano['ruta_relativa'];
                 } else {
                     $mensajeError = 'Error al guardar el plano';
-                    $stmtUsuario->close();
-                    $stmtCheck->close();
                     goto end_process;
                 }
                 
                 // Insertar relación usuario-desarrollo
-                $sqlRelacion = "INSERT INTO tbr_usuario_desarrollos 
-                                (IdUsuario, IdDesarrollo, Dpto, File_Comprobante, File_Planos, File_Avance_Obra, M2inicial, Fecha_Firma, Vigencia, Estatus) 
+                $sqlRelacion = "INSERT INTO tbr_usuario_desarrollos (IdUsuario, IdDesarrollo, Dpto, File_Comprobante, File_Planos, File_Avance_Obra, M2inicial, Fecha_Firma, Vigencia, Estatus) 
                                 VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, 1)";
                 $stmtRelacion = $conexion->prepare($sqlRelacion);
-                $stmtRelacion->bind_param('iissdss', $nuevoIdUsuario, $idDesarrollo, $departamento, $rutaComprobanteInicial, $rutaPlano, $metrosCuadrados, $fechaFirma, $fechaVigenciaCalculada);
+                $stmtRelacion->bind_param('iissdsss', $nuevoIdUsuario, $idDesarrollo, $departamento, $rutaComprobanteInicial, $rutaPlano, $metrosCuadrados, $fechaFirma, $fechaVigenciaCalculada);
                 
                 if ($stmtRelacion->execute()) {
                     // PASO 1: Insertar el ENGANCHE como primer pago
                     if ($enganche > 0) {
-                        $sqlEnganche = "INSERT INTO tbr_pagos (
-                            IdUsuario, IdDesarrollo, Dpto, IdCliente, 
-                            m2inicial, m2actual, Precio_Compraventa, Precio_Actual,
-                            FechaPago, Monto, Estatus, Concepto, CreatedAt
-                        ) VALUES (?, ?, ?, NULL, ?, NULL, ?, NULL, ?, ?, 2, 'Enganche', NOW())";
+                        $sqlEnganche = "INSERT INTO tbr_pagos (IdUsuario, IdDesarrollo, Dpto, IdCliente, m2inicial, m2actual, Precio_Compraventa, Precio_Actual, FechaPago, Monto, Estatus, Concepto, CreatedAt)
+                                        VALUES (?, ?, ?, NULL, ?, NULL, ?, NULL, ?, ?, 2, 'Enganche', NOW())";
                         
                         $stmtEnganche = $conexion->prepare($sqlEnganche);
                         $stmtEnganche->bind_param('iisddsd', 
@@ -158,8 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         // Guardar comprobante del enganche
                         if ($rutaComprobanteInicial && $idPagoEnganche > 0) {
-                            $sqlUpdateComprobante = "INSERT INTO tbr_comprobantes_pago 
-                                                     (IdPago, IdUsuario, IdDesarrollo, Dpto, ArchivoComprobante, Estatus, FechaSubida) 
+                            $sqlUpdateComprobante = "INSERT INTO tbr_comprobantes_pago (IdPago, IdUsuario, IdDesarrollo, Dpto, ArchivoComprobante, Estatus, FechaSubida) 
                                                      VALUES (?, ?, ?, ?, ?, 'Aprobado', NOW())";
                             $stmtComp = $conexion->prepare($sqlUpdateComprobante);
                             $stmtComp->bind_param('iiiss', $idPagoEnganche, $nuevoIdUsuario, $idDesarrollo, $departamento, $rutaComprobanteInicial);
@@ -188,11 +230,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     // PASO 3: Insertar pago de ESCRITURACIÓN al final
                     if ($escrituracion > 0 && !empty($fechaEscrituracion)) {
-                        $sqlEscrituracion = "INSERT INTO tbr_pagos (
-                            IdUsuario, IdDesarrollo, Dpto, IdCliente,
-                            m2inicial, m2actual, Precio_Compraventa, Precio_Actual,
-                            FechaPago, Monto, Estatus, Concepto, CreatedAt
-                        ) VALUES (?, ?, ?, NULL, ?, NULL, ?, NULL, ?, ?, 1, 'Escrituración', NOW())";
+                        $sqlEscrituracion = "INSERT INTO tbr_pagos (IdUsuario, IdDesarrollo, Dpto, IdCliente, m2inicial, m2actual, Precio_Compraventa, Precio_Actual, FechaPago, Monto, Estatus, Concepto, CreatedAt)
+                                             VALUES (?, ?, ?, NULL, ?, NULL, ?, NULL, ?, ?, 1, 'Escrituración', NOW())";
                         
                         $stmtEscrituracion = $conexion->prepare($sqlEscrituracion);
                         $stmtEscrituracion->bind_param('iisddsd',
@@ -214,7 +253,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $detallePagos[] = "{$numeroMeses} mensualidades";
                         if ($escrituracion > 0) $detallePagos[] = "1 escrituración";
                         
-                        $mensajeExito = "Usuario creado exitosamente. Se generaron {$totalPagos} pagos (" . implode(' + ', $detallePagos) . "). Contraseña inicial: {$rfc}";
+                        $accionRealizada = $usuarioExistente ? "Departamento asignado al usuario existente" : "Usuario creado exitosamente";
+                        $infoPassword = $usuarioExistente ? "" : " Contraseña inicial: {$rfc}";
+                        
+                        $mensajeExito = "{$accionRealizada}. Se generaron {$totalPagos} pagos (" . implode(' + ', $detallePagos) . ").{$infoPassword}";
                         $_POST = array();
                     } else {
                         $mensajeError = 'Usuario creado pero hubo un error al generar los pagos.';
@@ -224,14 +266,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 $stmtRelacion->close();
-            } else {
-                $mensajeError = 'Error al crear el usuario: ' . $stmtUsuario->error;
             }
-            
-            $stmtUsuario->close();
         }
-        
-        $stmtCheck->close();
     }
     
     end_process:
@@ -464,7 +500,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <div class="form-group">
                                             <label>RFC <span class="text-danger">*</span></label>
                                             <input type="text" class="form-control" name="rfc" value="<?= isset($_POST['rfc']) ? htmlspecialchars($_POST['rfc']) : '' ?>" required maxlength="13" style="text-transform: uppercase;" placeholder="XAXX010101000">
-                                            <small class="form-text text-muted">Esta será su contraseña inicial</small>
+                                            <small class="form-text text-muted">Si ya existe, se asignará el nuevo departamento</small>
                                         </div>
                                     </div>
                                     
@@ -499,7 +535,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <div class="col-12 col-md-6 col-lg-2 mb-3">
                                         <div class="form-group">
                                             <label>M² Totales <span class="text-danger">*</span></label>
-                                            <input type="number" step="0.01" class="form-control" name="metros_cuadrados" value="<?= isset($_POST['metros_cuadrados']) ? htmlspecialchars($_POST['metros_cuadrados']) : '' ?>" required placeholder="Ej: 128.5">
+                                            <input type="number" step="0.01" class="form-control" name="metros_cuadrados" value="<?= isset($_POST['metros_cuadrados']) ? htmlspecialchars($_POST['metros_cuadrados']) : '' ?>" required placeholder="Ej: 128.5" min="0.01">
                                             <small class="form-text text-muted">Superficie total construida</small>
                                         </div>
                                     </div>
@@ -507,7 +543,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <div class="col-12 col-md-6 col-lg-2 mb-3">
                                         <div class="form-group">
                                             <label>Precio por M² Inicial <span class="text-danger">*</span></label>
-                                            <input type="number" step="0.01" class="form-control" name="precio_m2_inicial" value="<?= isset($_POST['precio_m2_inicial']) ? htmlspecialchars($_POST['precio_m2_inicial']) : '' ?>" required placeholder="Ej: 46075.66">
+                                            <input type="number" step="0.01" class="form-control" name="precio_m2_inicial" value="<?= isset($_POST['precio_m2_inicial']) ? htmlspecialchars($_POST['precio_m2_inicial']) : '' ?>" required placeholder="Ej: 46075.66" min="0.01">
                                             <small class="form-text text-muted">Precio por m² al momento de la compra</small>
                                         </div>
                                     </div>
@@ -515,7 +551,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <div class="col-12 col-md-6 col-lg-2 mb-3">
                                         <div class="form-group">
                                             <label>Precio de Compraventa <span class="text-danger">*</span></label>
-                                            <input type="number" step="0.01" class="form-control" name="precio_compra" value="<?= isset($_POST['precio_compra']) ? htmlspecialchars($_POST['precio_compra']) : '' ?>" required placeholder="Ej: 5905785.12">
+                                            <input type="number" step="0.01" class="form-control" name="precio_compra" value="<?= isset($_POST['precio_compra']) ? htmlspecialchars($_POST['precio_compra']) : '' ?>" required placeholder="Ej: 5905785.12" min="0.01">
                                             <small class="form-text text-muted">Precio total del departamento</small>
                                         </div>
                                     </div>
@@ -540,7 +576,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <div class="col-12 col-md-6 col-lg-4 mb-3">
                                         <div class="form-group">
                                             <label>Comprobante del Enganche <span class="text-danger">*</span></label>
-                                            <input type="file" class="form-control" name="comprobante_inicial" accept=".pdf,.jpg,.jpeg,.png" required>
+                                            <input type="file" class="form-control" name="comprobante_inicial" required>
                                             <small class="form-text text-muted">PDF, JPG o PNG. Máximo 5MB</small>
                                         </div>
                                     </div>
@@ -548,7 +584,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <div class="col-12 col-md-6 col-lg-4 mb-3">
                                         <div class="form-group">
                                             <label>Plano del Departamento <span class="text-danger">*</span></label>
-                                            <input type="file" class="form-control" name="plano_departamento" accept=".pdf,.jpg,.jpeg,.png" required>
+                                            <input type="file" class="form-control" name="plano_departamento" required>
                                             <small class="form-text text-muted">PDF, JPG o PNG. Máximo 5MB</small>
                                         </div>
                                     </div>
@@ -626,8 +662,207 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="../js/vendor/jquery-3.3.1.min.js"></script>
     <script src="../js/vendor/bootstrap.bundle.min.js"></script>
     <script src="../js/vendor/perfect-scrollbar.min.js"></script>
+    <script src="../js/vendor/jquery.validate/jquery.validate.min.js"></script>
+    <script src="../js/vendor/jquery.validate/additional-methods.min.js"></script>
     <script src="../js/dore.script.js"></script>
     <script src="../js/scripts.js"></script>
+    <script>
+    $(document).ready(function() {
+        // Agregar ID al formulario si no lo tiene
+        $('form').attr('id', 'formAltaUsuario');
+        
+        // Configurar validación con Bootstrap 4
+        $("#formAltaUsuario").validate({
+            errorElement: 'div',
+            errorClass: 'invalid-feedback',
+            errorPlacement: function(error, element) {
+                if (element.parent('.input-group').length) {
+                    error.insertAfter(element.parent());
+                } else {
+                    error.insertAfter(element);
+                }
+            },
+            highlight: function(element) {
+                $(element).addClass('is-invalid').removeClass('is-valid');
+            },
+            unhighlight: function(element) {
+                $(element).removeClass('is-invalid').addClass('is-valid');
+            },
+            rules: {
+                nombre: {
+                    required: true,
+                    minlength: 3,
+                    maxlength: 100
+                },
+                rfc: {
+                    required: true,
+                    minlength: 12,
+                    maxlength: 13
+                },
+                email: {
+                    required: true,
+                    email: true
+                },
+                telefono: {
+                    required: true,
+                    minlength: 10
+                },
+                departamento: {
+                    required: true
+                },
+                metros_cuadrados: {
+                    required: true,
+                    min: 0.01
+                },
+                precio_m2_inicial: {
+                    required: true,
+                    min: 0.01
+                },
+                precio_compra: {
+                    required: true,
+                    min: 0.01
+                },
+                fecha_firma: {
+                    required: true
+                },
+                enganche: {
+                    required: true,
+                    min: 0
+                },
+                escrituracion: {
+                    required: true,
+                    min: 0
+                },
+                fecha_escrituracion: {
+                    required: true
+                },
+                monto_mensual: {
+                    required: true,
+                    min: 0.01
+                },
+                numero_meses: {
+                    required: true,
+                    min: 1,
+                    max: 360
+                },
+                fecha_inicio: {
+                    required: true
+                }
+            },
+            messages: {
+                nombre: {
+                    required: "Por favor ingrese el nombre completo",
+                    minlength: "Mínimo 3 caracteres",
+                    maxlength: "Máximo 100 caracteres"
+                },
+                rfc: {
+                    required: "RFC es obligatorio",
+                    minlength: "RFC inválido (12-13 caracteres)",
+                    maxlength: "RFC inválido (12-13 caracteres)"
+                },
+                email: {
+                    required: "Email es obligatorio",
+                    email: "Email inválido"
+                },
+                telefono: {
+                    required: "Teléfono es obligatorio",
+                    minlength: "Mínimo 10 dígitos"
+                },
+                departamento: {
+                    required: "Número de departamento es obligatorio"
+                },
+                metros_cuadrados: {
+                    required: "M² totales es obligatorio",
+                    min: "Los m² deben ser mayor a 0"
+                },
+                precio_m2_inicial: {
+                    required: "Precio por m² es obligatorio",
+                    min: "El precio debe ser mayor a 0"
+                },
+                precio_compra: {
+                    required: "Precio de compraventa es obligatorio",
+                    min: "El precio debe ser mayor a 0"
+                },
+                fecha_firma: {
+                    required: "Fecha de firma es obligatoria"
+                },
+                enganche: {
+                    required: "Enganche es obligatorio",
+                    min: "El enganche debe ser 0 o mayor"
+                },
+                escrituracion: {
+                    required: "Escrituración es obligatoria",
+                    min: "La escrituración debe ser 0 o mayor"
+                },
+                fecha_escrituracion: {
+                    required: "Fecha de escrituración es obligatoria"
+                },
+                monto_mensual: {
+                    required: "Monto mensual es obligatorio",
+                    min: "El monto debe ser mayor a 0"
+                },
+                numero_meses: {
+                    required: "Número de mensualidades es obligatorio",
+                    min: "Mínimo 1 mensualidad",
+                    max: "Máximo 360 mensualidades"
+                },
+                fecha_inicio: {
+                    required: "Fecha de inicio es obligatoria"
+                }
+            },
+            submitHandler: function(form) {
+                // Validar archivos obligatorios
+                var comprobanteInicial = $('input[name="comprobante_inicial"]')[0].files[0];
+                var plano = $('input[name="plano_departamento"]')[0].files[0];
+                
+                if (!comprobanteInicial) {
+                    alert('El comprobante del enganche es obligatorio');
+                    $('input[name="comprobante_inicial"]').focus();
+                    return false;
+                }
+                
+                if (!plano) {
+                    alert('El plano del departamento es obligatorio');
+                    $('input[name="plano_departamento"]').focus();
+                    return false;
+                }
+                
+                // Validar tamaño de archivos (5MB)
+                const maxSize = 5 * 1024 * 1024;
+                if (comprobanteInicial.size > maxSize) {
+                    alert('El comprobante no debe superar 5MB');
+                    $('input[name="comprobante_inicial"]').focus();
+                    return false;
+                }
+                
+                if (plano.size > maxSize) {
+                    alert('El plano no debe superar 5MB');
+                    $('input[name="plano_departamento"]').focus();
+                    return false;
+                }
+                
+                // Validar tipo de archivos
+                const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+                if (!allowedTypes.includes(comprobanteInicial.type)) {
+                    alert('El comprobante debe ser PDF, JPG o PNG');
+                    $('input[name="comprobante_inicial"]').focus();
+                    return false;
+                }
+                
+                if (!allowedTypes.includes(plano.type)) {
+                    alert('El plano debe ser PDF, JPG o PNG');
+                    $('input[name="plano_departamento"]').focus();
+                    return false;
+                }
+                
+                // Mostrar loading
+                $('button[type="submit"]').prop('disabled', true).html('<i class="simple-icon-hourglass"></i> Procesando...');
+                form.submit();
+            }
+        });
+    });
+    </script>
+</body>
 </body>
 
 </html>
