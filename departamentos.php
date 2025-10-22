@@ -58,15 +58,14 @@
         // Obtener departamentos únicos del desarrollo
         $departamentos = [];
         if (!empty($idDesa)) {
-            $sqlDeptos = "SELECT DISTINCT 
-                            p.Dpto, p.IdCliente, p.Precio_Compraventa, p.m2inicial, p.m2actual,
-                            ud.M2Inicial as SuperficieReal, ud.File_Planos
-                         FROM tbr_pagos p
-                         LEFT JOIN tbr_usuario_desarrollos ud ON p.IdUsuario = ud.IdUsuario 
-                            AND p.IdDesarrollo = ud.IdDesarrollo 
-                            AND p.Dpto = ud.Dpto
-                         WHERE p.IdDesarrollo = ? AND p.IdUsuario = ?
-                         ORDER BY p.Dpto";
+            $sqlDeptos = "SELECT ud.Dpto, ud.M2inicial as SuperficieReal, ud.File_Planos,
+                            (SELECT MAX(Precio_Compraventa) FROM tbr_pagos 
+                            WHERE IdUsuario = ud.IdUsuario 
+                            AND IdDesarrollo = ud.IdDesarrollo 
+                            AND Dpto = ud.Dpto) as Precio_Compraventa
+                        FROM tbr_usuario_desarrollos ud
+                        WHERE ud.IdDesarrollo = ? AND ud.IdUsuario = ? AND ud.Estatus = 1
+                        ORDER BY CAST(ud.Dpto AS UNSIGNED)";
             $stmtDeptos = $conexion->prepare($sqlDeptos);
             $stmtDeptos->bind_param('ii', $idDesa, $idUsuario);
             $stmtDeptos->execute();
@@ -409,15 +408,7 @@
                     <ul class="nav nav-tabs" id="departamentoTabs" role="tablist">
                         <?php foreach($departamentos as $index => $depto): ?>
                         <li class="nav-item" role="presentation">
-                            <a class="nav-link <?= $index === 0 ? 'active' : '' ?>" 
-                               id="depto<?= $depto['Dpto'] ?>-tab" 
-                               data-toggle="tab" 
-                               href="#depto<?= $depto['Dpto'] ?>" 
-                               role="tab" 
-                               aria-controls="depto<?= $depto['Dpto'] ?>" 
-                               aria-selected="<?= $index === 0 ? 'true' : 'false' ?>">
-                                Departamento <?= $depto['Dpto'] ?>
-                            </a>
+                            <a class="nav-link <?= $index === 0 ? 'active' : '' ?>" id="depto<?= $depto['Dpto'] ?>-tab" data-toggle="tab" href="#depto<?= $depto['Dpto'] ?>" role="tab" aria-controls="depto<?= $depto['Dpto'] ?>" aria-selected="<?= $index === 0 ? 'true' : 'false' ?>"> Departamento <?= $depto['Dpto'] ?></a>
                         </li>
                         <?php endforeach; ?>
                     </ul>
@@ -425,18 +416,23 @@
                     <div class="tab-content" id="departamentoTabsContent">
                         <?php foreach($departamentos as $index => $depto): 
                             $numDepto = $depto['Dpto'];
-                            $idCliente = $depto['IdCliente'];
+                            $idCliente = $depto['IdCliente'] ?? null;
                             $precioCompraventa = (float)$depto['Precio_Compraventa'];
                             $superficieReal = (float)($depto['SuperficieReal'] ?? 128);
                             $filePlanos = trim($depto['File_Planos'] ?? '');
-                            $urlPlanos = $filePlanos ? $baseUrl . rawurlencode($filePlanos) : '';
+                            // URL relativa para el navegador
+                            if ($filePlanos) {
+                                // Como departamentos.php está en la raíz, uploads también está en la raíz
+                                $urlPlanos = 'uploads/' . $filePlanos;
+                            } else {
+                                $urlPlanos = '';
+                            }
                             $fechaFormateada = date('d/m/Y H:i');
                             
                             // Calcular pagos realizados
-                            $sqlPagos = "SELECT 
-                                SUM(CASE WHEN Estatus = 2 THEN Monto ELSE 0 END) as ImportePagado
-                            FROM tbr_pagos 
-                            WHERE IdDesarrollo = ? AND IdUsuario = ? AND Dpto = ?";
+                            $sqlPagos = "SELECT SUM(CASE WHEN Estatus = 2 THEN Monto ELSE 0 END) as ImportePagado
+                                        FROM tbr_pagos 
+                                        WHERE IdDesarrollo = ? AND IdUsuario = ? AND Dpto = ?";
                             
                             $stmtPagos = $conexion->prepare($sqlPagos);
                             $stmtPagos->bind_param('iis', $idDesa, $idUsuario, $numDepto);
@@ -447,11 +443,7 @@
                             
                             $importePagado = (float)($dataPagos['ImportePagado'] ?? 0);
                         ?>
-                        <div class="tab-pane fade <?= $index === 0 ? 'show active' : '' ?>" 
-                             id="depto<?= $numDepto ?>" 
-                             role="tabpanel" 
-                             aria-labelledby="depto<?= $numDepto ?>-tab">
-                             
+                        <div class="tab-pane fade <?= $index === 0 ? 'show active' : '' ?>" id="depto<?= $numDepto ?>" role="tabpanel" aria-labelledby="depto<?= $numDepto ?>-tab">
                             <!-- FICHAS KPI DEL DEPARTAMENTO -->
                             <div class="row mb-4">
                                 <div class="col-lg-3">
@@ -492,11 +484,7 @@
                                             </div>
                                             <div>
                                                 <?php if ($filePlanos): ?>
-                                                    <a href="<?= $urlPlanos ?>" 
-                                                       target="_blank" 
-                                                       rel="noopener" 
-                                                       download 
-                                                       class="btn btn-light btn-sm">
+                                                    <a href="<?= $urlPlanos ?>" target="_blank" rel="noopener" download class="btn btn-light btn-sm">
                                                         <i class="simple-icon-cloud-download"></i> Descargar
                                                     </a>
                                                 <?php else: ?>
@@ -537,7 +525,6 @@
                                                         <th>Estatus</th>
                                                         <th>Concepto</th>
                                                         <th>Monto</th>
-                                                        <th>Precio Compraventa</th>
                                                         <th>Restante</th>
                                                         <th>Acción</th>
                                                     </tr>
@@ -548,7 +535,14 @@
                                                     $sqlDetallePagos = "SELECT IdPago, FechaPago, Estatus, Concepto, Monto, Precio_Compraventa, Precio_Actual
                                                                         FROM tbr_pagos 
                                                                         WHERE IdDesarrollo = ? AND IdUsuario = ? AND Dpto = ?
-                                                                        ORDER BY FechaPago";
+                                                                        ORDER BY 
+                                                                        CASE 
+                                                                            WHEN Concepto = 'Enganche' THEN 1
+                                                                            WHEN Concepto LIKE 'Mensualidad%' THEN 2
+                                                                            WHEN Concepto = 'Escrituración' THEN 3
+                                                                            ELSE 4
+                                                                        END,
+                                                                        FechaPago ASC";
                                                     
                                                     $stmtDetalle = $conexion->prepare($sqlDetallePagos);
                                                     $stmtDetalle->bind_param('iis', $idDesa, $idUsuario, $numDepto);
@@ -609,7 +603,6 @@
                                                         <td><span class="badge <?= $estatusClass ?>"><?= $estatus ?></span></td>
                                                         <td><?= htmlspecialchars($pago['Concepto']) ?></td>
                                                         <td>$<?= number_format($monto, 2) ?></td>
-                                                        <td>$<?= number_format($precioCompraventa, 2) ?></td>
                                                         <td>$<?= number_format($saldoRestante, 2) ?></td>
                                                         <td>
                                                             <?php if ($mostrarBoton): ?>

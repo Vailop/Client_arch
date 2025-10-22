@@ -1,66 +1,54 @@
 <?php
-    require 'config.php';
+/**
+ * Genera plan de pagos mensuales para un usuario
+ * NO incluir config.php aquí porque ya se incluye en el archivo que llama a esta función
+ */
 
-    // Función para generar pagos mensuales
-    function generarPagosMensuales($conexion, $datosContrato) {
-        try {
-            // Parámetros del contrato
-            $idUsuario = $datosContrato['IdUsuario'];
-            $idDesarrollo = $datosContrato['IdDesarrollo'];
-            $depto = $datosContrato['Depto'];
-            $idCliente = $datosContrato['IdCliente'];
-            $m2inicial = $datosContrato['m2inicial'];
-            $m2actual = $datosContrato['m2actual'];
-            $precioCompraventa = $datosContrato['Precio_Compraventa'];
-            $fechaInicio = $datosContrato['FechaInicio']; // Formato: 'YYYY-MM-DD'
-            $montoMensual = $datosContrato['MontoMensual'];
-            $numeroMensualidades = $datosContrato['NumeroMensualidades'];
+function generarPagosMensuales($conexion, $datosContrato) {
+    try {
+        $idUsuario = $datosContrato['IdUsuario'];
+        $idDesarrollo = $datosContrato['IdDesarrollo'];
+        $depto = $datosContrato['Depto'];
+        $m2inicial = $datosContrato['m2inicial'];
+        $precioCompraventa = $datosContrato['Precio_Compraventa'];
+        $fechaInicio = $datosContrato['FechaInicio'];
+        $montoMensual = $datosContrato['MontoMensual'];
+        $numeroMensualidades = $datosContrato['NumeroMensualidades'];
 
-            echo "Generando $numeroMensualidades pagos para el cliente $idCliente...\n";
-            echo "Monto mensual: $" . number_format($montoMensual, 2) . "\n";
-            echo "Fecha inicio: $fechaInicio\n\n";
+        $sql = "INSERT INTO tbr_pagos (
+            IdUsuario, IdDesarrollo, Dpto, IdCliente, 
+            m2inicial, m2actual, Precio_Compraventa, Precio_Actual,
+            FechaPago, Monto, Estatus, Concepto, CreatedAt
+        ) VALUES (?, ?, ?, NULL, ?, NULL, ?, NULL, ?, ?, 1, ?, NOW())";
 
-            // Preparar la consulta para insertar pagos
-            $sql = "INSERT INTO tbr_pagos (
-                IdUsuario, IdDesarrollo, Dpto, IdCliente, 
-                m2inicial, m2actual, Precio_Compraventa, Precio_Actual,
-                FechaPago, Monto, Estatus, Concepto, CreatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-
-            $stmt = $conexion->prepare($sql);
-
-            // Generar cada mensualidad
-            for($i = 0; $i < $numeroMensualidades; $i++) {
-                // Calcular fecha de cada mensualidad (empezando desde la fecha inicial)
-                $fechaPago = date('Y-m-d', strtotime($fechaInicio . " +{$i} months"));
-                $numeroMensualidad = $i + 1;
-                
-                // Datos del pago
-                $precioActual = 0; // Se llenará cuando se haga el pago
-                $estatus = 1; // 1 = Pendiente, 0 = Pagado
-                $concepto = "Mensualidad $numeroMensualidad";
-
-                // Ejecutar inserción
-                $stmt->bind_param('iisisdddsids', 
-                    $idUsuario, $idDesarrollo, $depto, $idCliente,
-                    $m2inicial, $m2actual, $precioCompraventa, $precioActual,
-                    $fechaPago, $montoMensual, $estatus, $concepto
-                );
-
-                if($stmt->execute()) {
-                    echo "✓ Mensualidad $numeroMensualidad programada para: $fechaPago\n";
-                } else {
-                    echo "✗ Error en mensualidad $numeroMensualidad: " . $stmt->error . "\n";
-                }
-            }
-
-            $stmt->close();
-            echo "\n¡Pagos generados exitosamente!\n";
-            return true;
-
-        } catch(Exception $e) {
-            echo "Error: " . $e->getMessage() . "\n";
+        $stmt = $conexion->prepare($sql);
+        
+        if (!$stmt) {
             return false;
         }
+
+        for($i = 0; $i < $numeroMensualidades; $i++) {
+            $fechaPago = date('Y-m-d', strtotime($fechaInicio . " +{$i} months"));
+            $numeroMensualidad = $i + 1;
+            $concepto = "Mensualidad {$numeroMensualidad}";
+
+            $stmt->bind_param('iisddsds', 
+                $idUsuario, $idDesarrollo, $depto,
+                $m2inicial, $precioCompraventa,
+                $fechaPago, $montoMensual, $concepto
+            );
+
+            if(!$stmt->execute()) {
+                $stmt->close();
+                return false;
+            }
+        }
+
+        $stmt->close();
+        return true;
+
+    } catch(Exception $e) {
+        return false;
     }
+}
 ?>

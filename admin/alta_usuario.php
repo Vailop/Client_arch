@@ -181,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $sqlRelacion = "INSERT INTO tbr_usuario_desarrollos (IdUsuario, IdDesarrollo, Dpto, File_Comprobante, File_Planos, File_Avance_Obra, M2inicial, Fecha_Firma, Vigencia, Estatus) 
                                 VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, 1)";
                 $stmtRelacion = $conexion->prepare($sqlRelacion);
-                $stmtRelacion->bind_param('iissdsss', $nuevoIdUsuario, $idDesarrollo, $departamento, $rutaComprobanteInicial, $rutaPlano, $metrosCuadrados, $fechaFirma, $fechaVigenciaCalculada);
+                $stmtRelacion->bind_param('iisssdss', $nuevoIdUsuario, $idDesarrollo, $departamento, $rutaComprobanteInicial, $rutaPlano, $metrosCuadrados, $fechaFirma, $fechaVigenciaCalculada);
                 
                 if ($stmtRelacion->execute()) {
                     // PASO 1: Insertar el ENGANCHE como primer pago
