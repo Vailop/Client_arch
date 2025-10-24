@@ -306,7 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 
 <body id="app-container" class="menu-default show-spinner">
-    <!-- NAVBAR -->
+
     <nav class="navbar fixed-top">
         <div class="d-flex align-items-center navbar-left">
             <a href="#" class="menu-button d-none d-md-block">
@@ -385,7 +385,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
 
-        <!-- SUB MENU -->
         <div class="sub-menu">
             <div class="scroll">
                 <ul class="list-unstyled" data-link="dashboard">
@@ -666,205 +665,204 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="../js/vendor/jquery.validate/additional-methods.min.js"></script>
     <script src="../js/dore.script.js"></script>
     <script src="../js/scripts.js"></script>
+
     <script>
-    $(document).ready(function() {
-        // Agregar ID al formulario si no lo tiene
-        $('form').attr('id', 'formAltaUsuario');
-        
-        // Configurar validación con Bootstrap 4
-        $("#formAltaUsuario").validate({
-            errorElement: 'div',
-            errorClass: 'invalid-feedback',
-            errorPlacement: function(error, element) {
-                if (element.parent('.input-group').length) {
-                    error.insertAfter(element.parent());
-                } else {
-                    error.insertAfter(element);
+        $(document).ready(function() {
+            // Agregar ID al formulario si no lo tiene
+            $('form').attr('id', 'formAltaUsuario');
+            
+            // Configurar validación con Bootstrap 4
+            $("#formAltaUsuario").validate({
+                errorElement: 'div',
+                errorClass: 'invalid-feedback',
+                errorPlacement: function(error, element) {
+                    if (element.parent('.input-group').length) {
+                        error.insertAfter(element.parent());
+                    } else {
+                        error.insertAfter(element);
+                    }
+                },
+                highlight: function(element) {
+                    $(element).addClass('is-invalid').removeClass('is-valid');
+                },
+                unhighlight: function(element) {
+                    $(element).removeClass('is-invalid').addClass('is-valid');
+                },
+                rules: {
+                    nombre: {
+                        required: true,
+                        minlength: 3,
+                        maxlength: 100
+                    },
+                    rfc: {
+                        required: true,
+                        minlength: 12,
+                        maxlength: 13
+                    },
+                    email: {
+                        required: true,
+                        email: true
+                    },
+                    telefono: {
+                        required: true,
+                        minlength: 10
+                    },
+                    departamento: {
+                        required: true
+                    },
+                    metros_cuadrados: {
+                        required: true,
+                        min: 0.01
+                    },
+                    precio_m2_inicial: {
+                        required: true,
+                        min: 0.01
+                    },
+                    precio_compra: {
+                        required: true,
+                        min: 0.01
+                    },
+                    fecha_firma: {
+                        required: true
+                    },
+                    enganche: {
+                        required: true,
+                        min: 0
+                    },
+                    escrituracion: {
+                        required: true,
+                        min: 0
+                    },
+                    fecha_escrituracion: {
+                        required: true
+                    },
+                    monto_mensual: {
+                        required: true,
+                        min: 0.01
+                    },
+                    numero_meses: {
+                        required: true,
+                        min: 1,
+                        max: 360
+                    },
+                    fecha_inicio: {
+                        required: true
+                    }
+                },
+                messages: {
+                    nombre: {
+                        required: "Por favor ingrese el nombre completo",
+                        minlength: "Mínimo 3 caracteres",
+                        maxlength: "Máximo 100 caracteres"
+                    },
+                    rfc: {
+                        required: "RFC es obligatorio",
+                        minlength: "RFC inválido (12-13 caracteres)",
+                        maxlength: "RFC inválido (12-13 caracteres)"
+                    },
+                    email: {
+                        required: "Email es obligatorio",
+                        email: "Email inválido"
+                    },
+                    telefono: {
+                        required: "Teléfono es obligatorio",
+                        minlength: "Mínimo 10 dígitos"
+                    },
+                    departamento: {
+                        required: "Número de departamento es obligatorio"
+                    },
+                    metros_cuadrados: {
+                        required: "M² totales es obligatorio",
+                        min: "Los m² deben ser mayor a 0"
+                    },
+                    precio_m2_inicial: {
+                        required: "Precio por m² es obligatorio",
+                        min: "El precio debe ser mayor a 0"
+                    },
+                    precio_compra: {
+                        required: "Precio de compraventa es obligatorio",
+                        min: "El precio debe ser mayor a 0"
+                    },
+                    fecha_firma: {
+                        required: "Fecha de firma es obligatoria"
+                    },
+                    enganche: {
+                        required: "Enganche es obligatorio",
+                        min: "El enganche debe ser 0 o mayor"
+                    },
+                    escrituracion: {
+                        required: "Escrituración es obligatoria",
+                        min: "La escrituración debe ser 0 o mayor"
+                    },
+                    fecha_escrituracion: {
+                        required: "Fecha de escrituración es obligatoria"
+                    },
+                    monto_mensual: {
+                        required: "Monto mensual es obligatorio",
+                        min: "El monto debe ser mayor a 0"
+                    },
+                    numero_meses: {
+                        required: "Número de mensualidades es obligatorio",
+                        min: "Mínimo 1 mensualidad",
+                        max: "Máximo 360 mensualidades"
+                    },
+                    fecha_inicio: {
+                        required: "Fecha de inicio es obligatoria"
+                    }
+                },
+                submitHandler: function(form) {
+                    // Validar archivos obligatorios
+                    var comprobanteInicial = $('input[name="comprobante_inicial"]')[0].files[0];
+                    var plano = $('input[name="plano_departamento"]')[0].files[0];
+                    
+                    if (!comprobanteInicial) {
+                        alert('El comprobante del enganche es obligatorio');
+                        $('input[name="comprobante_inicial"]').focus();
+                        return false;
+                    }
+                    
+                    if (!plano) {
+                        alert('El plano del departamento es obligatorio');
+                        $('input[name="plano_departamento"]').focus();
+                        return false;
+                    }
+                    
+                    // Validar tamaño de archivos (5MB)
+                    const maxSize = 5 * 1024 * 1024;
+                    if (comprobanteInicial.size > maxSize) {
+                        alert('El comprobante no debe superar 5MB');
+                        $('input[name="comprobante_inicial"]').focus();
+                        return false;
+                    }
+                    
+                    if (plano.size > maxSize) {
+                        alert('El plano no debe superar 5MB');
+                        $('input[name="plano_departamento"]').focus();
+                        return false;
+                    }
+                    
+                    // Validar tipo de archivos
+                    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+                    if (!allowedTypes.includes(comprobanteInicial.type)) {
+                        alert('El comprobante debe ser PDF, JPG o PNG');
+                        $('input[name="comprobante_inicial"]').focus();
+                        return false;
+                    }
+                    
+                    if (!allowedTypes.includes(plano.type)) {
+                        alert('El plano debe ser PDF, JPG o PNG');
+                        $('input[name="plano_departamento"]').focus();
+                        return false;
+                    }
+                    
+                    // Mostrar loading
+                    $('button[type="submit"]').prop('disabled', true).html('<i class="simple-icon-hourglass"></i> Procesando...');
+                    form.submit();
                 }
-            },
-            highlight: function(element) {
-                $(element).addClass('is-invalid').removeClass('is-valid');
-            },
-            unhighlight: function(element) {
-                $(element).removeClass('is-invalid').addClass('is-valid');
-            },
-            rules: {
-                nombre: {
-                    required: true,
-                    minlength: 3,
-                    maxlength: 100
-                },
-                rfc: {
-                    required: true,
-                    minlength: 12,
-                    maxlength: 13
-                },
-                email: {
-                    required: true,
-                    email: true
-                },
-                telefono: {
-                    required: true,
-                    minlength: 10
-                },
-                departamento: {
-                    required: true
-                },
-                metros_cuadrados: {
-                    required: true,
-                    min: 0.01
-                },
-                precio_m2_inicial: {
-                    required: true,
-                    min: 0.01
-                },
-                precio_compra: {
-                    required: true,
-                    min: 0.01
-                },
-                fecha_firma: {
-                    required: true
-                },
-                enganche: {
-                    required: true,
-                    min: 0
-                },
-                escrituracion: {
-                    required: true,
-                    min: 0
-                },
-                fecha_escrituracion: {
-                    required: true
-                },
-                monto_mensual: {
-                    required: true,
-                    min: 0.01
-                },
-                numero_meses: {
-                    required: true,
-                    min: 1,
-                    max: 360
-                },
-                fecha_inicio: {
-                    required: true
-                }
-            },
-            messages: {
-                nombre: {
-                    required: "Por favor ingrese el nombre completo",
-                    minlength: "Mínimo 3 caracteres",
-                    maxlength: "Máximo 100 caracteres"
-                },
-                rfc: {
-                    required: "RFC es obligatorio",
-                    minlength: "RFC inválido (12-13 caracteres)",
-                    maxlength: "RFC inválido (12-13 caracteres)"
-                },
-                email: {
-                    required: "Email es obligatorio",
-                    email: "Email inválido"
-                },
-                telefono: {
-                    required: "Teléfono es obligatorio",
-                    minlength: "Mínimo 10 dígitos"
-                },
-                departamento: {
-                    required: "Número de departamento es obligatorio"
-                },
-                metros_cuadrados: {
-                    required: "M² totales es obligatorio",
-                    min: "Los m² deben ser mayor a 0"
-                },
-                precio_m2_inicial: {
-                    required: "Precio por m² es obligatorio",
-                    min: "El precio debe ser mayor a 0"
-                },
-                precio_compra: {
-                    required: "Precio de compraventa es obligatorio",
-                    min: "El precio debe ser mayor a 0"
-                },
-                fecha_firma: {
-                    required: "Fecha de firma es obligatoria"
-                },
-                enganche: {
-                    required: "Enganche es obligatorio",
-                    min: "El enganche debe ser 0 o mayor"
-                },
-                escrituracion: {
-                    required: "Escrituración es obligatoria",
-                    min: "La escrituración debe ser 0 o mayor"
-                },
-                fecha_escrituracion: {
-                    required: "Fecha de escrituración es obligatoria"
-                },
-                monto_mensual: {
-                    required: "Monto mensual es obligatorio",
-                    min: "El monto debe ser mayor a 0"
-                },
-                numero_meses: {
-                    required: "Número de mensualidades es obligatorio",
-                    min: "Mínimo 1 mensualidad",
-                    max: "Máximo 360 mensualidades"
-                },
-                fecha_inicio: {
-                    required: "Fecha de inicio es obligatoria"
-                }
-            },
-            submitHandler: function(form) {
-                // Validar archivos obligatorios
-                var comprobanteInicial = $('input[name="comprobante_inicial"]')[0].files[0];
-                var plano = $('input[name="plano_departamento"]')[0].files[0];
-                
-                if (!comprobanteInicial) {
-                    alert('El comprobante del enganche es obligatorio');
-                    $('input[name="comprobante_inicial"]').focus();
-                    return false;
-                }
-                
-                if (!plano) {
-                    alert('El plano del departamento es obligatorio');
-                    $('input[name="plano_departamento"]').focus();
-                    return false;
-                }
-                
-                // Validar tamaño de archivos (5MB)
-                const maxSize = 5 * 1024 * 1024;
-                if (comprobanteInicial.size > maxSize) {
-                    alert('El comprobante no debe superar 5MB');
-                    $('input[name="comprobante_inicial"]').focus();
-                    return false;
-                }
-                
-                if (plano.size > maxSize) {
-                    alert('El plano no debe superar 5MB');
-                    $('input[name="plano_departamento"]').focus();
-                    return false;
-                }
-                
-                // Validar tipo de archivos
-                const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
-                if (!allowedTypes.includes(comprobanteInicial.type)) {
-                    alert('El comprobante debe ser PDF, JPG o PNG');
-                    $('input[name="comprobante_inicial"]').focus();
-                    return false;
-                }
-                
-                if (!allowedTypes.includes(plano.type)) {
-                    alert('El plano debe ser PDF, JPG o PNG');
-                    $('input[name="plano_departamento"]').focus();
-                    return false;
-                }
-                
-                // Mostrar loading
-                $('button[type="submit"]').prop('disabled', true).html('<i class="simple-icon-hourglass"></i> Procesando...');
-                form.submit();
-            }
+            });
         });
-    });
     </script>
 </body>
-</body>
-
 </html>
 
 <?php $conexion->close(); ?>

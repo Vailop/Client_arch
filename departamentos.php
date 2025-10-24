@@ -959,18 +959,25 @@
         $('#formComprobantes').on('submit', function(e) {
             e.preventDefault();
             
-            // Mostrar notificación de procesando
-            $.notify({
-                message: 'Subiendo comprobantes, por favor espere...',
-                icon: 'simple-icon-cloud-upload'
-            }, {
-                type: 'info',
-                delay: 0,
-                placement: {
-                    from: "top",
-                    align: "center"
-                }
-            });
+            // Validar que el botón esté habilitado
+            if ($('#btnSubirComprobantes').prop('disabled')) {
+                $.notify({
+                    message: 'Complete todos los campos correctamente antes de enviar'
+                }, {
+                    type: 'warning',
+                    delay: 3000,
+                    placement: {
+                        from: "top",
+                        align: "center"
+                    }
+                });
+                return false;
+            }
+            
+            // Deshabilitar botón mientras procesa
+            var $btnSubmit = $('#btnSubirComprobantes');
+            var textoOriginal = $btnSubmit.html();
+            $btnSubmit.prop('disabled', true).html('<i class="simple-icon-hourglass"></i> Procesando...');
             
             var formData = new FormData(this);
             
@@ -982,21 +989,22 @@
                 processData: false,
                 success: function(response) {
                     try {
-                        var data = JSON.parse(response);
+                        var data = typeof response === 'string' ? JSON.parse(response) : response;
+                        
                         if (data.success) {
                             // Notificación de éxito
                             $.notify({
-                                message: 'Comprobantes subidos exitosamente. En breve serán validados.',
-                                icon: 'simple-icon-check'
+                                message: 'Comprobantes subidos exitosamente. En breve serán validados.'
                             }, {
                                 type: 'success',
-                                delay: 4000,
+                                delay: 3000,
                                 placement: {
                                     from: "top",
                                     align: "center"
                                 }
                             });
                             
+                            // Cerrar modal
                             $('#modalComprobantes').modal('hide');
                             
                             // Recargar después de un breve delay
@@ -1007,147 +1015,61 @@
                         } else {
                             // Notificación de error específico
                             $.notify({
-                                message: data.message || 'Error al procesar los comprobantes',
-                                icon: 'simple-icon-exclamation'
+                                message: data.message || 'Error al procesar los comprobantes'
                             }, {
                                 type: 'danger',
-                                delay: 6000,
+                                delay: 5000,
                                 placement: {
                                     from: "top",
                                     align: "center"
                                 }
                             });
+                            
+                            // Rehabilitar botón
+                            $btnSubmit.prop('disabled', false).html(textoOriginal);
                         }
                     } catch (e) {
+                        console.error('Error parsing response:', e, response);
+                        
                         // Error al parsear JSON
                         $.notify({
-                            message: 'Error inesperado en la respuesta del servidor',
-                            icon: 'simple-icon-exclamation'
+                            message: 'Error inesperado en la respuesta del servidor'
                         }, {
                             type: 'danger',
-                            delay: 6000,
+                            delay: 5000,
                             placement: {
                                 from: "top",
                                 align: "center"
                             }
                         });
+                        
+                        // Rehabilitar botón
+                        $btnSubmit.prop('disabled', false).html(textoOriginal);
                     }
                 },
                 error: function(xhr, status, error) {
+                    console.error('AJAX Error:', status, error);
+                    
                     // Error de conexión o servidor
                     $.notify({
-                        message: 'Error de conexión. Verifique su internet e intente nuevamente.',
-                        icon: 'simple-icon-close'
+                        message: 'Error de conexión. Verifique su internet e intente nuevamente.'
                     }, {
                         type: 'danger',
-                        delay: 6000,
+                        delay: 5000,
                         placement: {
                             from: "top",
                             align: "center"
                         }
                     });
+                    
+                    // Rehabilitar botón
+                    $btnSubmit.prop('disabled', false).html(textoOriginal);
                 }
             });
         });
     </script>
 
-    <script>
-        // Cargar alertas con sistema de visto persistente
-        function cargarAlertas() {
-            fetch('alertas.php')
-                .then(res => res.json())
-                .then(data => {
-                    if (data.error) {
-                        console.error('Error:', data.error);
-                        return;
-                    }
-                    
-                    // Obtener timestamp de última vista
-                    const ultimaVista = localStorage.getItem('alertas_ultima_vista');
-                    const ahora = Date.now();
-                    const cincoMinutos = 300000; // 5 minutos en milisegundos
-                    
-                    const badge = document.getElementById('alertasCount');
-                    const container = document.getElementById('alertasContainer');
-                    
-                    // Verificar si ya vio las alertas hace menos de 5 minutos
-                    const yaVisto = ultimaVista && (ahora - parseInt(ultimaVista)) < cincoMinutos;
-                    
-                    // Actualizar badge
-                    if (yaVisto || data.total === 0) {
-                        badge.style.display = 'none';
-                    } else {
-                        badge.style.display = '';
-                        badge.textContent = data.total;
-                        
-                        // Color según prioridad
-                        if (data.criticas > 0) {
-                            badge.style.backgroundColor = '#ffffff';
-                        } else {
-                            badge.style.backgroundColor = '';
-                        }
-                    }
-                    
-                    // Mostrar alertas en el dropdown
-                    if (data.total === 0) {
-                        container.innerHTML = `
-                            <div class="text-center py-4">
-                                <i class="simple-icon-check" style="font-size: 32px; opacity: 0.3;"></i>
-                                <p class="text-muted small mt-2 mb-0">Todo al corriente</p>
-                            </div>
-                        `;
-                        return;
-                    }
-                    
-                    let html = '';
-                    data.alertas.forEach(alerta => {
-                        const clase = 'alerta-' + alerta.prioridad;
-                        html += `
-                            <div class="alerta-item ${clase}">
-                                <div class="alerta-titulo">
-                                    ${alerta.icono} ${alerta.titulo}
-                                </div>
-                                <div class="alerta-mensaje">${alerta.mensaje}</div>
-                            </div>
-                        `;
-                    });
-                    
-                    container.innerHTML = html;
-                })
-                .catch(error => {
-                    console.error('Error cargando alertas:', error);
-                    document.getElementById('alertasContainer').innerHTML = `
-                        <div class="alert alert-danger small mb-0">Error al cargar notificaciones</div>
-                    `;
-                });
-        }
 
-        // Evento al hacer click en la campana
-        document.addEventListener('DOMContentLoaded', function() {
-            // Cargar alertas al inicio
-            cargarAlertas();
-            
-            // Actualizar cada 5 minutos
-            setInterval(cargarAlertas, 300000);
-            
-            // Marcar como visto al hacer click en la campana
-            const btnNotif = document.getElementById('notificationButton');
-            if (btnNotif) {
-                btnNotif.addEventListener('click', function() {
-                    // Guardar timestamp de visualización
-                    localStorage.setItem('alertas_ultima_vista', Date.now().toString());
-                    
-                    // Ocultar badge después de medio segundo
-                    setTimeout(function() {
-                        const badge = document.getElementById('alertasCount');
-                        if (badge) {
-                            badge.style.display = 'none';
-                        }
-                    }, 500);
-                });
-            }
-        });
-    </script>
 </body>
 
 </html>
